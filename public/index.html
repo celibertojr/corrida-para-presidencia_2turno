@@ -668,6 +668,59 @@ var podium=new THREE.Group();podium.visible=false;scene.add(podium);
   var base=new THREE.Mesh(new THREE.BoxGeometry(POD.w*2+4,0.3,POD.d+3),new THREE.MeshStandardMaterial({color:0x14306b,roughness:.7}));
   base.position.set(0,-0.1,0);base.receiveShadow=true;podium.add(base);
 })();
+/* Torcida atrás do pódio: pessoas comemorando com bandeiras na cor do partido de quem venceu
+   (vermelho do PT se o Lula vencer; azul e amarelo do PL se o Flávio vencer). Só aparece no pódio. */
+var torcida=new THREE.Group();torcida.visible=false;scene.add(torcida);
+var flagM=new THREE.MeshStandardMaterial({color:0xcc0000,roughness:.7,side:THREE.DoubleSide});
+var flagM2=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.7,side:THREE.DoubleSide});
+var camM=[new THREE.MeshStandardMaterial({color:0xcc0000,roughness:.8}),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.8}),new THREE.MeshStandardMaterial({color:0x333a4a,roughness:.8})];
+var torcedores=[];
+(function(){
+  var poleM=new THREE.MeshStandardMaterial({color:0x8a6a45,roughness:.8}),calM=new THREE.MeshStandardMaterial({color:0x2a3550,roughness:.85});
+  var peles=[0xf1c9a5,0xe0ac7e,0xc68642,0x8d5524,0xffdbac].map(function(c){return new THREE.MeshStandardMaterial({color:c,roughness:.8});});
+  var corpoG=new THREE.CylinderGeometry(0.55,0.6,1.9,10),pernaG=new THREE.CylinderGeometry(0.5,0.45,1.5,10),cabG=new THREE.SphereGeometry(0.55,14,10),
+      bracoG=new THREE.CylinderGeometry(0.16,0.16,1.4,6),mastroG=new THREE.CylinderGeometry(0.06,0.06,4.2,6),
+      bandG=new THREE.PlaneGeometry(2.4,1.5,8,1),faixaG=new THREE.PlaneGeometry(2.4,0.35,8,1);
+  var fileiras=[{z:-15,n:13,dx:2.7},{z:-18.5,n:14,dx:2.7},{z:-22,n:16,dx:2.6}];
+  var semente=7;function rnd(){semente=(semente*16807)%2147483647;return semente/2147483647;}
+  fileiras.forEach(function(f,fi){
+    for(var k=0;k<f.n;k++){
+      var g=new THREE.Group(),x=(k-(f.n-1)/2)*f.dx+(rnd()-0.5)*0.8;
+      g.position.set(x,0,f.z+(rnd()-0.5)*0.8);
+      var pe=peles[Math.floor(rnd()*peles.length)];
+      var perna=new THREE.Mesh(pernaG,calM);perna.position.y=0.75;g.add(perna);
+      var corpo=new THREE.Mesh(corpoG,camM[Math.floor(rnd()*3)]);corpo.position.y=2.45;g.add(corpo);
+      var cab=new THREE.Mesh(cabG,pe);cab.position.y=3.85;g.add(cab);
+      var bE=new THREE.Mesh(bracoG,pe);bE.position.set(-0.75,3.3,0);bE.rotation.z=-2.6;g.add(bE);
+      /* braço direito segura o mastro com a bandeira */
+      var mao=new THREE.Group();mao.position.set(0.7,3.2,0);g.add(mao);
+      var bD=new THREE.Mesh(bracoG,pe);bD.position.set(0.25,0.55,0);bD.rotation.z=-0.4;mao.add(bD);
+      var temBandeira=rnd()<0.75,band=null;
+      if(temBandeira){
+        var mastro=new THREE.Mesh(mastroG,poleM);mastro.position.set(0.5,1.9,0);mao.add(mastro);
+        band=new THREE.Mesh(bandG.clone(),flagM);band.position.set(1.7,3.2,0);mao.add(band);
+        var fx=new THREE.Mesh(faixaG,flagM2);fx.position.set(1.7,3.2,0.01);mao.add(fx);band.userData.faixa=fx;
+      }else{bD.rotation.z=2.6;bD.position.set(0.05,0.1,0);}
+      g.scale.setScalar(0.95+rnd()*0.15);
+      torcida.add(g);torcedores.push({g:g,mao:mao,band:band,f:rnd()*6.28,v:3+rnd()*2});
+    }
+  });
+})();
+function corTorcida(){
+  var c=CANDS[order[0]];
+  flagM.color.set(c.c);flagM2.color.set(c.s==="#FFFFFF"&&c.c!=="#E11D2E"?"#FFD400":c.s);
+  camM[0].color.set(c.c);camM[1].color.set(c.s);
+}
+function animarTorcida(t){
+  torcedores.forEach(function(p){
+    p.g.position.y=Math.max(0,Math.sin(t*p.v+p.f))*0.45;           /* pulando */
+    p.mao.rotation.z=Math.sin(t*2.6+p.f)*0.35;                     /* balançando a bandeira */
+    if(p.band){var pos=p.band.geometry.attributes.position;          /* tecido ondulando */
+      for(var i=0;i<pos.count;i++){var x=pos.getX(i);pos.setZ(i,Math.sin(x*2.2-t*7+p.f)*0.18*(x+1.2)/2.4);}
+      pos.needsUpdate=true;p.band.userData.faixa.position.z=0.02;}
+  });
+}
+
 /* rosto: sorriso (normal) ou triste (2º lugar no pódio): boca virada, sobrancelhas caídas, cabeça baixa */
 function rosto(r,triste){
   if(r.triste===triste)return;r.triste=triste;
@@ -716,7 +769,7 @@ function podiumReady(){
   return st.pct>POD_MIN&&gapSignificant();
 }
 function setPodium(on){
-  st.podium=!!on;podium.visible=st.podium;ringSel.visible=false;
+  st.podium=!!on;podium.visible=st.podium;torcida.visible=st.podium;if(st.podium)corTorcida();ringSel.visible=false;
   $("btnpod").setAttribute("aria-pressed",st.podium?"true":"false");
   $("podtxt").textContent=st.podium?"Voltar à corrida":"Vencedores";
   $("btnpod").setAttribute("aria-label",st.podium?"Voltar à corrida":"Vencedores");
@@ -1343,6 +1396,7 @@ function frame(now){
     animateRunner(r,dt,moving?1:0.35,st.pct<=0);
     r.label.sprite.position.set(p[0],RS*3.55,p[1]);
   });
+  if(st.podium&&!reduced)animarTorcida(now/1000);
   if(st.sel>=0&&!st.podium){var sp=runners[st.sel].root.position;ringSel.position.set(sp.x,0.08,sp.z);ringSel.visible=true;}else ringSel.visible=false;
   if(!reduced&&!leve){var t=now/1000;crowdGroups.forEach(function(g,k){g.position.y=Math.abs(Math.sin(t*(2.2+k*0.35)+k*1.7))*0.22*(st.pct>0?1:0.3);});}
   if(dirty&&now-lastUI>120){dirty=false;lastUI=now;updateUI();}
