@@ -72,3 +72,10 @@ Cada problema avisa uma vez, lembra a cada 30 min se continuar e avisa quando vo
   `alerta_cmd` (qualquer comando; a mensagem vem na variável `ALERTA_MSG`). Tudo fica em `alertas.log`.
 - **Controle** (o Kermit/OpenClaw usa pela skill): `--alertas desligar`, `--alertas ligar`,
   `--silenciar 60`, `--alertas status`. Teste: `--testar-aviso`.
+
+### Avisos pelo próprio Kermit (WhatsApp)
+
+Cada aviso também entra numa fila (`alertas_pendentes.txt`). O heartbeat do OpenClaw roda
+`monitor_corrida.py --pendentes` a cada poucos minutos: sem avisos, a saída é `NADA` e o Kermit responde
+`HEARTBEAT_OK` (nada é enviado); com avisos, ele manda o texto no WhatsApp. Instruções em `openclaw/HEARTBEAT.md`.
+Avisos desligados ou silenciados não entram na fila.

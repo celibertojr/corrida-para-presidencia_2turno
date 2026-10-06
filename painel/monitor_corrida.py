@@ -45,6 +45,7 @@ ARQ_LOG = os.path.join(AQUI, "monitor_corrida.log")
 ESPERA_ANTES = 3600  # antes das 16h30: uma checagem por hora
 ARQ_ALERTAS = os.path.join(AQUI, "alertas.json")       # liga/desliga/silencia (o OpenClaw muda por comando)
 ARQ_ALERTAS_LOG = os.path.join(AQUI, "alertas.log")    # todos os avisos enviados
+ARQ_PENDENTES = os.path.join(AQUI, "alertas_pendentes.txt")  # fila para o Kermit (OpenClaw) entregar no WhatsApp
 REPETIR_MIN = 30   # problema que continua: lembra no máximo a cada 30 min
 CARENCIA_TSE_MIN = 5  # o arquivo do TSE pode demorar alguns minutos depois das 17h: só avisa depois disso
 
@@ -104,6 +105,9 @@ def enviar(msg):
     if not ligado:
         registrar(f"Aviso não enviado (alertas {porque}): {msg.splitlines()[0]}")
         return
+    # fila para o Kermit: o heartbeat do OpenClaw roda --pendentes e entrega pelo WhatsApp
+    with open(ARQ_PENDENTES, "a", encoding="utf-8") as f:
+        f.write(f"[{agora_brt():%H:%M}] {msg}\n\n")
     cfg, enviado = config_envio(), False
     tok, chat = str(cfg.get("telegram_token", "")).strip(), str(cfg.get("telegram_chat_id", "")).strip()
     if tok and chat and not tok.upper().startswith("COLE"):
@@ -324,7 +328,18 @@ def main():
     ap.add_argument("--alertas", choices=["ligar", "desligar", "status"], help="liga, desliga ou mostra os avisos automáticos")
     ap.add_argument("--silenciar", type=int, metavar="MIN", help="silencia os avisos por MIN minutos (0 = acaba o silêncio)")
     ap.add_argument("--testar-aviso", action="store_true", help="envia um aviso de teste pelos meios configurados")
+    ap.add_argument("--pendentes", action="store_true", help="mostra e esvazia os avisos ainda não entregues (usado pelo OpenClaw); sem avisos, imprime NADA")
     a = ap.parse_args()
+    if a.pendentes:
+        try:
+            tmp = ARQ_PENDENTES + ".lendo"
+            os.replace(ARQ_PENDENTES, tmp)  # pega a fila de uma vez (o monitor pode estar gravando)
+            txt = open(tmp, encoding="utf-8").read().strip()
+            os.remove(tmp)
+        except FileNotFoundError:
+            txt = ""
+        print(txt or "NADA")
+        return
     if a.alertas or a.silenciar is not None:
         c = ler_ctrl()
         if a.alertas == "ligar":

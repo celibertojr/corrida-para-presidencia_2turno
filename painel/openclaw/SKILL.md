@@ -45,6 +45,15 @@ python3 ~/corrida/painel/monitor_corrida.py --alertas status     # mostra se est
 tail -n 10 ~/corrida/painel/alertas.log                          # últimos avisos
 ```
 
+Entrega automática dos avisos (heartbeat): rode
+
+```bash
+python3 ~/corrida/painel/monitor_corrida.py --pendentes
+```
+
+Se a saída for exatamente `NADA`, responda só `HEARTBEAT_OK`. Caso contrário, envie ao usuário o texto
+dos avisos, sem acrescentar nada além de uma linha curta, se precisar.
+
 Regras:
 - Responda em português, curto: situação (TUDO OK / ATENÇÃO / ERRO), % de urnas, 1º e 2º e o que estiver com problema.
 - Não altere arquivos do site, do GitHub nem da Cloudflare. Este skill é só para acompanhar.

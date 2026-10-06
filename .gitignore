@@ -8,3 +8,5 @@ painel/monitor_corrida.log
 painel/*.tmp
 painel/alertas.json
 painel/alertas.log
+painel/alertas_pendentes.txt
+painel/*.lendo
