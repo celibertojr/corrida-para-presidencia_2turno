@@ -557,6 +557,18 @@ var runners=CANDS.map(function(d,i){
 
   var browM=d.age?new THREE.MeshStandardMaterial({color:0xd6d6d0,roughness:.9}):hairM; /* sobrancelhas grisalhas nos mais velhos */
   var torso=ball(0.5,shirtM,0.02,0.62*b,0.72,0.44);torso.position.y=1.55-hipY;upper.add(torso);
+  /* faixa presidencial (verde e amarela, na diagonal do ombro ao quadril): só aparece no vencedor, no pódio */
+  var faixa=new THREE.Group();faixa.position.y=1.55-hipY;faixa.rotation.z=0.85;faixa.visible=false;upper.add(faixa);
+  var fv=new THREE.Mesh(new THREE.CylinderGeometry(1,1,0.24,40,1,true),new THREE.MeshStandardMaterial({color:0x009c3b,roughness:.6,side:THREE.DoubleSide}));
+  fv.scale.set(0.335*b,1,0.235);faixa.add(fv);
+  var fa=new THREE.Mesh(new THREE.CylinderGeometry(1,1,0.08,40,1,true),new THREE.MeshStandardMaterial({color:0xffdf00,roughness:.6,side:THREE.DoubleSide}));
+  fa.scale.set(0.345*b,1,0.245);faixa.add(fa);
+  /* brasão simplificado no peito: disco dourado com centro azul e estrela branca */
+  var bra=new THREE.Group();bra.position.set(0,0,0.255);bra.rotation.z=-0.85;faixa.add(bra);
+  var d1=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,0.025,24),new THREE.MeshStandardMaterial({color:0xd4af37,roughness:.35,metalness:.6}));d1.rotation.x=Math.PI/2;bra.add(d1);
+  var d2=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.03,24),new THREE.MeshStandardMaterial({color:0x1b3f9b,roughness:.5}));d2.rotation.x=Math.PI/2;d2.position.z=0.004;bra.add(d2);
+  var est=new THREE.Shape();for(var q=0;q<10;q++){var ang=Math.PI/2+q*Math.PI/5,rr=q%2?0.012:0.03;est[q?"lineTo":"moveTo"](Math.cos(ang)*rr,Math.sin(ang)*rr);}
+  var d3=new THREE.Mesh(new THREE.ShapeGeometry(est),new THREE.MeshBasicMaterial({color:0xffffff}));d3.position.z=0.021;bra.add(d3);
   var shorts=ball(0.5,shortsMd,0.02,0.6*b,0.3,0.44);shorts.position.y=1.06;body.add(shorts);
 
   var head=new THREE.Group(),brows=[];head.position.y=2.3-hipY;upper.add(head);
@@ -628,7 +640,7 @@ var runners=CANDS.map(function(d,i){
   scene.add(root);
   var lab=makeLabel(d);scene.add(lab.sprite);
   root.traverse(function(o){o.userData.idx=i;});
-  return {d:d,root:root,body:body,upper:upper,head:head,mouth:mouth,brows:brows,triste:false,arms:arms,legs:legs,ph:Math.random()*6.28,cur:0,hd:{x:1,z:0},label:lab,R:laneR(d.lane),tx:FIN,tz:laneR(d.lane)};
+  return {d:d,root:root,body:body,upper:upper,faixa:faixa,head:head,mouth:mouth,brows:brows,triste:false,arms:arms,legs:legs,ph:Math.random()*6.28,cur:0,hd:{x:1,z:0},label:lab,R:laneR(d.lane),tx:FIN,tz:laneR(d.lane)};
 });
 var ringSel=new THREE.Mesh(new THREE.RingGeometry(2.3,2.8,32),new THREE.MeshBasicMaterial({color:0xffd23f,side:THREE.DoubleSide,transparent:true,opacity:.9}));
 ringSel.rotation.x=-Math.PI/2;ringSel.visible=false;scene.add(ringSel);
@@ -679,6 +691,7 @@ function podiumPose(r,k,t){
     r.upper.rotation.x=0.12;r.body.position.y=0;                 /* ombros curvados, sem pular */
   }
   rosto(r,k===1);
+  r.faixa.visible=k===0; /* faixa presidencial no 1º colocado */
   r.upper.rotation.y=0;
   r.label.sprite.position.set(x,h+RS*3.7,0);
 }
@@ -1321,7 +1334,7 @@ function frame(now){
   var tg=targets(),kk=1-Math.exp(-dtReal*1.8);
   runners.forEach(function(r,i){
     if(st.podium&&rankOf[i]<2){podiumPose(r,rankOf[i],now/1000);return;}
-    r.arms[0].sh.rotation.z=0;r.arms[1].sh.rotation.z=0;rosto(r,false);
+    r.arms[0].sh.rotation.z=0;r.arms[1].sh.rotation.z=0;rosto(r,false);r.faixa.visible=false;
     var prev=r.cur;r.cur+=(tg[i]-r.cur)*kk;
     var moving=Math.abs(tg[i]-r.cur)>0.0004||Math.abs(r.cur-prev)>1e-6;
     var p=pt(r.R,r.cur),q=pt(r.R,r.cur+0.0015),hx=q[0]-p[0],hz=q[1]-p[1],ln=Math.hypot(hx,hz)||1;
