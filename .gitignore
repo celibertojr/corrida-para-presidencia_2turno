@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+painel/painel_config.json
+painel/historico_apuracao.csv

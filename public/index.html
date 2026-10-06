@@ -1,0 +1,1144 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Corrida para a Presidência</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@500;600&display=swap">
+<style>
+/* Layout: estádio 3D em tela cheia; placar no topo, classificação à direita, controles embaixo */
+:root{
+  --bg:#0a1122; --panel:rgba(9,15,30,.8); --line:rgba(255,255,255,.14);
+  --fg:#eef2f8; --dim:#9fb0c8; --gold:#ffd23f; --clay:#c8553d; --ok:#5fd38d;
+  --disp:'Big Shoulders Display','Arial Narrow',Impact,sans-serif;
+  --body:'Barlow','Segoe UI',system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:500 14px/1.35 var(--body);overflow:hidden}
+#app{position:relative;height:100%;width:100%;overflow:hidden}
+#stage{position:absolute;inset:0;touch-action:none;cursor:grab}
+#stage canvas{display:block;width:100%;height:100%}
+#stage.drag{cursor:grabbing}
+button{font:inherit;color:inherit}
+.top{position:absolute;left:16px;right:16px;top:12px;display:flex;gap:16px;justify-content:space-between;align-items:flex-start;pointer-events:none;flex-wrap:wrap}
+.brand{min-width:0}
+.kick{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600}
+h1{margin:2px 0 0;font:800 clamp(34px,6vw,58px)/.95 var(--disp);letter-spacing:.02em;text-transform:uppercase;text-wrap:balance;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+.meter{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px 12px;width:min(360px,100%);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-sizing:border-box}
+.mrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.mlabel{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.mval{font:800 44px/1 var(--disp);color:var(--gold);font-variant-numeric:tabular-nums}
+.bar{position:relative;height:10px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin:6px 0 8px}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--gold);transition:width .25s linear}
+.bar:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),rgba(10,17,34,.9) calc(10% - 1px) 10%)}
+.status{font-size:13px;line-height:1.3;color:var(--fg);min-height:34px}
+.status b{color:var(--gold);font-weight:600}
+.urnas{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;min-height:0}
+.urnas:empty{display:none}
+.nm .tag.lean{background:none;color:var(--gold);border:1px solid var(--gold);padding:0 4px}
+.rank{position:absolute;right:16px;top:164px;width:272px;max-height:calc(100% - 330px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden}
+.rank{transition:transform .28s ease,opacity .28s ease}
+.rank.off{transform:translateX(calc(100% + 24px));opacity:0;visibility:hidden;pointer-events:none;transition:transform .28s ease,opacity .28s ease,visibility 0s linear .28s}
+.rhead{display:flex;align-items:center;justify-content:space-between}
+.rhead .x{background:none;border:0;cursor:pointer;color:var(--dim);font-size:22px;line-height:1;padding:6px 12px}
+.rhead .x:hover{color:var(--fg)}
+.rhead .x:focus-visible,#tglrank:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.rank h2{margin:0;padding:10px 12px 6px;font:600 12px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+#rows{list-style:none;margin:0;padding:0 6px 6px;display:flex;flex-direction:column;overflow-y:auto}
+#rows li{display:grid;grid-template-columns:22px 32px minmax(0,1fr) auto;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+#rows li:hover{background:rgba(255,255,255,.06)}
+#rows li.sel{border-color:var(--gold);background:rgba(255,210,63,.08)}
+#rows li:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.rk{font:800 20px/1 var(--disp);color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
+.chip{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 15px/1 var(--disp);border:2px solid rgba(255,255,255,.85)}
+.nm{min-width:0}
+.nm b{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm span{display:block;font-size:11px;color:var(--dim);letter-spacing:.04em}
+.nm .tag{display:inline-block;margin-left:6px;color:#1a1300;background:var(--gold);border-radius:3px;padding:0 5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:10px}
+.pc{font:800 22px/1 var(--disp);font-variant-numeric:tabular-nums}
+.more{display:none;margin:0 6px 8px;padding:6px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid var(--line);cursor:pointer}
+.ctrl{position:absolute;left:16px;right:16px;bottom:12px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.aviso{margin:0;font-size:10px;line-height:1.35;color:var(--dim);background:var(--panel);padding:4px 10px;border-radius:6px;max-width:760px;box-sizing:border-box;pointer-events:auto;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.aviso a{color:inherit;text-decoration:underline}
+.aviso b{color:var(--fg);font-weight:600}
+.bar2{display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:auto}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.seg button{background:none;border:0;padding:9px 14px;cursor:pointer;font-weight:600;letter-spacing:.03em}
+.seg button[aria-pressed=true]{background:var(--gold);color:#1a1300}
+.seg button:focus-visible,.btn:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.btn:hover,.seg button:hover:not([aria-pressed=true]){border-color:rgba(255,255,255,.4)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:hover{border-color:var(--line)}
+.btn[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
+.btn.primary{background:var(--gold);color:#1a1300;border-color:var(--gold)}
+.btn svg{width:14px;height:14px;fill:currentColor}
+.scrub{display:flex;align-items:center;gap:10px;flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.scrub label{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap;font-weight:600}
+.scrub input{flex:1;min-width:0;accent-color:var(--gold)}
+.note{font-size:12px;color:var(--fg);background:var(--panel);padding:5px 10px;border-radius:6px;width:fit-content;max-width:100%;box-sizing:border-box;pointer-events:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.mode{display:inline-block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.1);color:var(--fg);margin-right:6px}
+.mode.live{background:var(--ok);color:#06210f}
+.scrim{position:absolute;left:0;top:0;width:min(1000px,100%);height:180px;pointer-events:none;opacity:0;background:radial-gradient(ellipse 100% 100% at 0 0,rgba(6,12,28,.62),rgba(6,12,28,.32) 50%,rgba(6,12,28,0) 78%);transition:opacity 2s linear}
+.gap{font-size:13px;color:var(--fg);margin-top:4px;font-variant-numeric:tabular-nums}
+.gap:empty{display:none}
+.gap b{color:var(--gold);font-weight:700}
+.more{display:none!important}
+@media (max-width:480px){.bar2 .btn .lbl{display:none}.bar2 .btn{padding:9px 12px}.bar2 .btn svg{width:16px;height:16px}}
+.btn[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
+.modal{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,8,18,.62)}
+.modal[hidden]{display:none}
+.mbox{position:relative;width:min(900px,100%);max-height:calc(100% - 24px);overflow:auto;background:#0d1528;border:1px solid var(--line);border-radius:12px;padding:16px 20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.mhead h2{margin:0;font:700 13px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.mhead .x{background:none;border:0;cursor:pointer;color:var(--dim);font-size:26px;line-height:1;padding:4px 10px}
+.mhead .x:focus-visible{outline:2px solid var(--gold)}
+.msub{font-size:12px;color:var(--dim);margin:0 0 12px}
+.mbody h3{margin:16px 0 8px;font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.scard{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+.scard .k{font-size:11px;color:var(--dim)}
+.scard .v{font:700 20px/1.25 var(--body);color:var(--fg);font-variant-numeric:tabular-nums}
+.scard .s{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.scard .v i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.est{font-size:11px;color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:2px}
+.gwrap{position:relative}
+.gwrap svg{display:block;width:100%;height:auto;overflow:visible}
+.gtip{position:absolute;pointer-events:none;background:#070d1a;border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:12px;line-height:1.45;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4);font-variant-numeric:tabular-nums}
+.gtip[hidden]{display:none}
+.gleg{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--fg);margin:2px 0 4px}
+.gleg span{display:inline-flex;align-items:center;gap:6px}
+.gleg i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.tbl{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;margin-top:6px}
+.tbl th,.tbl td{text-align:right;padding:3px 6px;border-bottom:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{color:var(--dim);font-weight:600}
+details summary{cursor:pointer;color:var(--dim);font-size:12px;margin-top:10px}
+#fail{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);display:none;max-width:min(520px,calc(100% - 32px));box-sizing:border-box;text-align:center;padding:14px 18px;font-size:14px;line-height:1.4;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+@media (max-width:760px){
+  .top{gap:8px}
+  .meter{width:100%}
+  .mval{font-size:38px}
+  .rank{left:16px;right:16px;width:auto;top:auto;bottom:252px;max-height:36%}
+  .rank.off{transform:translateY(24px)}
+  #rows li:not(.t3){display:none}
+  .rank.open #rows li{display:grid}
+  .more{display:block}
+  .scrub{min-width:100%;order:3}
+  .note{font-size:11px}
+  .aviso{font-size:9.5px}
+}
+@media (max-width:760px) and (max-height:640px){.status{display:none}.rank{display:none}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}.rank{transition:none}}
+</style>
+
+<div id="app">
+  <div id="stage"></div>
+  <div class="scrim" id="scrim" aria-hidden="true"></div>
+  <div id="fail" role="status">O 3D não pôde ser iniciado neste navegador. Os números e a classificação continuam atualizando normalmente.</div>
+  <header class="top">
+    <div class="brand">
+      <span class="kick">Eleições 2026 · Presidente · 2º turno</span>
+      <h1>Corrida para a Presidência</h1>
+    </div>
+    <div class="meter" aria-live="polite">
+      <div class="mrow"><span class="mlabel">Urnas apuradas</span><span class="mval" id="pct">0,0%</span></div>
+      <div class="bar"><i id="barfill"></i></div>
+      <div class="status" id="status">Aguardando as primeiras urnas.</div>
+      <div class="gap" id="gap"></div>
+      <div class="urnas" id="urnas"></div>
+    </div>
+  </header>
+  <aside class="rank off" id="rank" aria-label="Classificação ao vivo">
+    <div class="rhead"><h2>Classificação</h2><button type="button" class="x" id="closerank" aria-label="Esconder classificação">&times;</button></div>
+    <ol id="rows"></ol>
+    <button class="more" id="more" type="button">Ver todos os candidatos</button>
+  </aside>
+  <footer class="ctrl">
+    <div class="note"><span class="mode" id="modechip">Conectando</span><span id="modenote">Conectando ao TSE. Esta página atualiza sozinha.</span></div>
+    <div class="bar2">
+      <div class="seg" role="group" aria-label="Câmera">
+        <button type="button" data-cam="pan" aria-pressed="true">Panorâmica</button>
+        <button type="button" data-cam="lead" aria-pressed="false">Seguir</button>
+        <button type="button" data-cam="finish" aria-pressed="false">Chegada</button>
+      </div>
+      <button type="button" class="btn" id="tglrank" aria-label="Classificação" aria-controls="rank" aria-expanded="false" disabled title="Disponível quando o TSE enviar os primeiros dados da apuração"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 2h12v2H1zM1 6h12v2H1zM1 10h12v2H1z"/></svg><span class="lbl">Classificação</span></button>
+      <button type="button" class="btn" id="btnpod" aria-label="Vencedores" disabled aria-pressed="false" title="Disponível com mais de 99% das urnas apuradas. Se o 1º e o 2º estiverem estatisticamente empatados, só com 99,99%."><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1h8v3c0 2-1.5 3.5-3 3.8V10h2v2H4v-2h2V7.8C4.5 7.5 3 6 3 4zM1 2h2v2.5C2 4.5 1 3.5 1 2.5zM11 2h2v.5c0 1-1 2-2 2z"/></svg><span class="lbl" id="podtxt">Vencedores</span></button>
+      <button type="button" class="btn" id="btnstats" aria-label="Estatísticas" disabled title="Disponível quando o TSE enviar os primeiros dados da apuração"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 12h12v1.5H1zM2 7h2.5v4H2zM6 4h2.5v7H6zM10 1.5h2.5V11H10z"/></svg><span class="lbl">Estatísticas</span></button>
+      <button type="button" class="btn" id="btngraf" aria-label="Gráfico" disabled title="Disponível quando o TSE enviar os primeiros dados da apuração"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 1h1.5v10.5H13V13H1zM3.5 9.2l3-3.4 2.2 1.9L12 3.6l1 .9-4.2 5-2.2-1.9-2.2 2.5z"/></svg><span class="lbl">Gráfico</span></button>
+      <button type="button" class="btn" id="btnleve" aria-label="Modo leve" aria-pressed="false" title="Desenho mais simples, para computadores e celulares mais lentos"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M8 0 2 8h4l-1 6 6-8H7z"/></svg><span class="lbl">Modo leve</span></button>
+    </div>
+    <p class="aviso"><b>Aviso:</b> site independente, sem qualquer vínculo com o Tribunal Superior Eleitoral (TSE), com candidatos ou partidos. Os números vêm da divulgação do TSE, mas podem ter atraso ou falhas, e as indicações de tendência são apenas estimativas. Para saber quem foi eleito, use somente as fontes oficiais do TSE (<a href="https://resultados.tse.jus.br" target="_blank" rel="noopener">resultados.tse.jus.br</a>).</p>
+  </footer>
+  <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="mbox">
+      <div class="mhead"><h2 id="mtitle"></h2><button type="button" class="x" id="mclose" aria-label="Fechar">&times;</button></div>
+      <div class="mbody" id="mbody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>/* CDN reserva, se a principal falhar */window.THREE||document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"><\/script>');</script>
+<script>
+(function(){
+"use strict";
+/* Dados ao vivo: o _worker.js (mesmo endereço do site) busca e normaliza o JSON do TSE. */
+var API="/api/resultado";
+var POLL_MS=30000;
+/* Início da divulgação do 2º turno: domingo, 25/10/2026, 17h de Brasília (20h UTC). Antes disso a página não faz nenhuma requisição. */
+var START=(typeof window.CORRIDA_START==="number")?window.CORRIDA_START:Date.UTC(2026,9,25,20,0,0);
+function untilStart(){return START-Date.now();}
+function fmtWait(ms){
+  var m=Math.ceil(ms/60000),d=Math.floor(m/1440),h=Math.floor((m%1440)/60),mi=m%60;
+  return (d>0?d+(d>1?" dias, ":" dia, "):"")+(h>0||d>0?h+" h e ":"")+mi+" min";
+}
+
+/* 2º turno: dois candidatos. "lane" = raia na pista de 8 raias (as do meio). */
+var CANDS=[
+ {n:13,name:"Lula",short:"LULA",party:"PT",c:"#E11D2E",t:"#FFFFFF",s:"#FFFFFF",hair:"gray",style:"short",beard:1,beardColor:"#F2F2EC",age:1,recede:0.16,build:1,lane:3},
+ {n:22,name:"Flávio Bolsonaro",short:"FLÁVIO",party:"PL",c:"#2A5BE8",t:"#FFFFFF",s:"#FFD400",hair:"dark",style:"short",beard:0,build:1,lane:4}
+];
+var N=8; /* raias da pista (uma pista real tem 8); os candidatos usam as raias do meio */
+var DISP="'Big Shoulders Display','Arial Narrow',Impact,sans-serif";
+var BODY="Barlow,'Segoe UI',system-ui,sans-serif";
+var reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* Geometria da pista (unidades em metros de desenho animado) */
+var L=80,R0=26,LW=2.5,RO=R0+N*LW,RS=2.0,FIN=26;
+function laneR(i){return R0+(i+0.5)*LW;}
+/* Ponto da raia de raio R após a fração f da volta; a volta começa na linha de chegada, reta mais próxima da câmera */
+function pt(R,f){
+  var d=f*(L+2*Math.PI*R),a=L/2-FIN,th;
+  if(d<=a)return[FIN+d,R]; d-=a;
+  if(d<=Math.PI*R){th=Math.PI/2-d/R;return[L/2+R*Math.cos(th),R*Math.sin(th)];} d-=Math.PI*R;
+  if(d<=L)return[L/2-d,-R]; d-=L;
+  if(d<=Math.PI*R){th=-Math.PI/2-d/R;return[-L/2+R*Math.cos(th),R*Math.sin(th)];} d-=Math.PI*R;
+  return[-L/2+d,R];
+}
+function fmtN(x){var v=Number(x);return isFinite(v)?Math.round(v).toLocaleString("pt-BR"):"—";}
+function fmt(x){var v=Number(x);return (isFinite(v)?v:0).toFixed(1).replace(".",",");}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+/* ---------- Renderer e cena ---------- */
+var host=document.getElementById("stage");
+var renderer;
+/* Modo leve: ?leve=1 no endereço, escolha salva no navegador, ou ativação automática se a página ficar lenta */
+var LEVE_SALVO="";try{LEVE_SALVO=localStorage.getItem("modoLeve")||"";}catch(e){}
+var LEVE_INI=/[?&]leve=1(&|$)/.test(location.search)||LEVE_SALVO==="1";
+try{
+  renderer=new THREE.WebGLRenderer({antialias:!LEVE_INI});
+}catch(e){
+  /* Sem 3D: a cena não é desenhada, mas números, classificação e pódio continuam atualizando */
+  document.getElementById("fail").style.display="block";
+  renderer={domElement:document.createElement("canvas"),shadowMap:{},setPixelRatio:function(){},setSize:function(){},render:function(){}};
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+var scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x0b1428,300,760);
+var camera=new THREE.PerspectiveCamera(48,1,0.5,1400);
+
+var fontRedraws=[];
+function canvasTex(w,h,draw){
+  var c=document.createElement("canvas");c.width=w;c.height=h;
+  var x=c.getContext("2d");draw(x,w,h);
+  var t=new THREE.CanvasTexture(c);t.anisotropy=4;return {canvas:c,ctx:x,tex:t};
+}
+
+/* Céu que acompanha a hora do visitante: noite, amanhecer, dia, pôr do sol e anoitecer */
+var skyTex,starsMat,sunSprite;
+var SKY_K=[ /* h = hora local; cores do céu (topo, meio, horizonte, base), névoa, luz ambiente, sol, estrelas, chão, refletores, faixa do título */
+ {h:0,    top:"#030816",mid:"#0d1c3a",hor:"#274168",bot:"#5b5f78",fog:"#0b1428",hs:"#c9dcff",hg:"#1d2b1c",hi:0.85,sc:"#fff1dc",si:0.95,st:1,   gr:"#0f1a2c",lamp:1,scrim:0},
+ {h:5,    top:"#030816",mid:"#0d1c3a",hor:"#274168",bot:"#5b5f78",fog:"#0b1428",hs:"#c9dcff",hg:"#1d2b1c",hi:0.85,sc:"#fff1dc",si:0.95,st:1,   gr:"#0f1a2c",lamp:1,scrim:0},
+ {h:5.75, top:"#0f1d44",mid:"#2c3f73",hor:"#9a6f8c",bot:"#d99a7e",fog:"#3a3f5c",hs:"#c9d4ff",hg:"#2a3324",hi:0.8, sc:"#ffc59a",si:0.75,st:0.4, gr:"#1d2733",lamp:1,scrim:0.3},
+ {h:6.5,  top:"#3d6fb8",mid:"#8db3e0",hor:"#f8c08a",bot:"#fde0b8",fog:"#c9b9b0",hs:"#ffe7cf",hg:"#3a4a2c",hi:0.9, sc:"#ffd2a1",si:1.0, st:0,   gr:"#4a5c45",lamp:0,scrim:0.9},
+ {h:8,    top:"#2f78d6",mid:"#6fb0ee",hor:"#bfe1fb",bot:"#e3f1fb",fog:"#bcd8f0",hs:"#e6f1ff",hg:"#3f5a30",hi:0.85,sc:"#fff6e6",si:0.95,st:0,   gr:"#4f6847",lamp:0,scrim:1},
+ {h:16.5, top:"#2f78d6",mid:"#6fb0ee",hor:"#bfe1fb",bot:"#e3f1fb",fog:"#bcd8f0",hs:"#e6f1ff",hg:"#3f5a30",hi:0.85,sc:"#fff6e6",si:0.95,st:0,   gr:"#4f6847",lamp:0,scrim:1},
+ {h:17.5, top:"#3567b0",mid:"#8aa7d6",hor:"#ffc58a",bot:"#ffe0b0",fog:"#d8c0a8",hs:"#ffe2c4",hg:"#3a4a2c",hi:0.92,sc:"#ffc98f",si:1.05,st:0,   gr:"#4d5e46",lamp:1,scrim:0.9},
+ {h:18.25,top:"#1c2d63",mid:"#5a4f8a",hor:"#ff8a5c",bot:"#ffb07a",fog:"#6a4f6a",hs:"#e7d0ff",hg:"#2a3324",hi:0.85,sc:"#ffa070",si:0.85,st:0.2, gr:"#2a3138",lamp:1,scrim:0.5},
+ {h:19,   top:"#081332",mid:"#16285a",hor:"#4a4a7a",bot:"#7a6a86",fog:"#141c38",hs:"#c9dcff",hg:"#1d2b1c",hi:0.85,sc:"#fff1dc",si:0.95,st:0.75,gr:"#141e30",lamp:1,scrim:0.1},
+ {h:20,   top:"#030816",mid:"#0d1c3a",hor:"#274168",bot:"#5b5f78",fog:"#0b1428",hs:"#c9dcff",hg:"#1d2b1c",hi:0.85,sc:"#fff1dc",si:0.95,st:1,   gr:"#0f1a2c",lamp:1,scrim:0},
+ {h:24,   top:"#030816",mid:"#0d1c3a",hor:"#274168",bot:"#5b5f78",fog:"#0b1428",hs:"#c9dcff",hg:"#1d2b1c",hi:0.85,sc:"#fff1dc",si:0.95,st:1,   gr:"#0f1a2c",lamp:1,scrim:0}
+];
+var skyNow=SKY_K[0];
+(function(){
+  skyTex=canvasTex(8,512,function(x,w,h){drawSkyGrad(x,w,h,SKY_K[0]);});
+  var dome=new THREE.Mesh(new THREE.SphereGeometry(1000,32,16),new THREE.MeshBasicMaterial({map:skyTex.tex,side:THREE.BackSide,fog:false}));
+  scene.add(dome);
+  var pos=[],i;for(i=0;i<420;i++){var az=Math.random()*Math.PI*2,el=0.12+Math.random()*1.2,r=950;pos.push(Math.cos(az)*Math.cos(el)*r,Math.sin(el)*r,Math.sin(az)*Math.cos(el)*r);}
+  var g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));
+  starsMat=new THREE.PointsMaterial({color:0xffffff,size:2.2,sizeAttenuation:false,fog:false,transparent:true,opacity:1});
+  scene.add(new THREE.Points(g,starsMat));
+  /* disco do sol */
+  var sd=canvasTex(128,128,function(x,w,h){
+    var gr=x.createRadialGradient(64,64,0,64,64,64);
+    gr.addColorStop(0,"rgba(255,255,245,1)");gr.addColorStop(0.32,"rgba(255,248,220,1)");gr.addColorStop(0.42,"rgba(255,226,160,.55)");gr.addColorStop(1,"rgba(255,210,140,0)");
+    x.fillStyle=gr;x.fillRect(0,0,w,h);
+  });
+  sunSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:sd.tex,fog:false,depthWrite:false,transparent:true}));
+  sunSprite.scale.set(150,150,1);sunSprite.visible=false;scene.add(sunSprite);
+})();
+function drawSkyGrad(x,w,h,k){
+  var g=x.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,k.top);g.addColorStop(.55,k.mid);g.addColorStop(.85,k.hor);g.addColorStop(1,k.bot);
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+}
+
+/* Luzes */
+var hemi=new THREE.HemisphereLight(0xc9dcff,0x1d2b1c,0.85);scene.add(hemi);
+var sun=new THREE.DirectionalLight(0xfff1dc,0.95);
+sun.position.set(50,130,70);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-80;sun.shadow.camera.right=80;sun.shadow.camera.top=80;sun.shadow.camera.bottom=-80;
+sun.shadow.camera.near=20;sun.shadow.camera.far=320;sun.shadow.bias=-0.0006;
+scene.add(sun);
+
+/* Chão */
+var groundMat=new THREE.MeshStandardMaterial({color:0x0f1a2c,roughness:1});
+var ground=new THREE.Mesh(new THREE.CircleGeometry(700,48),groundMat);
+ground.rotation.x=-Math.PI/2;ground.position.y=-0.06;scene.add(ground);
+
+var lampMat=new THREE.MeshBasicMaterial({color:0xfff6d8}); /* painéis dos refletores (acesos à noite) */
+
+/* ---------- Pista ---------- */
+function fillStad(p,R){
+  p.moveTo(-L/2,-R);p.lineTo(L/2,-R);p.absarc(L/2,0,R,-Math.PI/2,Math.PI/2,false);
+  p.lineTo(-L/2,R);p.absarc(-L/2,0,R,Math.PI/2,Math.PI*1.5,false);
+}
+function ringGeo(Rin,Rout,depth){
+  var sh=new THREE.Shape();fillStad(sh,Rout);
+  if(Rin>0){var h=new THREE.Path();fillStad(h,Rin);sh.holes.push(h);}
+  var g=depth?new THREE.ExtrudeGeometry(sh,{depth:depth,bevelEnabled:false,curveSegments:40}):new THREE.ShapeGeometry(sh,40);
+  g.rotateX(-Math.PI/2);return g;
+}
+function addRing(Rin,Rout,mat,y,depth,shadow){
+  var m=new THREE.Mesh(ringGeo(Rin,Rout,depth),mat);m.position.y=y;if(shadow)m.receiveShadow=true;scene.add(m);return m;
+}
+addRing(R0,RO,new THREE.MeshStandardMaterial({color:0xc8553d,roughness:.95}),0,0,true);
+addRing(RO,RO+3,new THREE.MeshStandardMaterial({color:0x2f7a3a,roughness:1}),0.005,0,true);
+/* gramado do centro com faixas de corte */
+(function(){
+  var st=canvasTex(256,4,function(x,w,h){x.fillStyle="#3f9b45";x.fillRect(0,0,w/2,h);x.fillStyle="#4aa94f";x.fillRect(w/2,0,w/2,h);});
+  st.tex.wrapS=THREE.RepeatWrapping;st.tex.repeat.set(1/14,1);
+  var m=new THREE.Mesh(ringGeo(0,R0,0),new THREE.MeshStandardMaterial({map:st.tex,roughness:1}));
+  m.position.y=0.01;m.receiveShadow=true;scene.add(m);
+})();
+/* linhas das raias */
+(function(){
+  var lm=new THREE.MeshBasicMaterial({color:0xffffff});
+  for(var k=0;k<=N;k++){addRing(R0+k*LW-0.04,R0+k*LW+0.04,lm,0.03,0,false);}
+})();
+/* faixa quadriculada da chegada */
+(function(){
+  var ck=canvasTex(64,256,function(x,w,h){
+    var s=16,i,j;for(j=0;j<h/s;j++)for(i=0;i<w/s;i++){x.fillStyle=(i+j)%2?"#111":"#fff";x.fillRect(i*s,j*s,s,s);}
+  });
+  var m=new THREE.Mesh(new THREE.PlaneGeometry(1.6,RO-R0),new THREE.MeshBasicMaterial({map:ck.tex}));
+  m.rotation.x=-Math.PI/2;m.position.set(FIN,0.05,(R0+RO)/2);scene.add(m);
+})();
+/* pórtico de chegada */
+(function(){
+  var dark=new THREE.MeshStandardMaterial({color:0x1b2436,roughness:.6});
+  var zc=(R0+RO)/2,span=RO-R0+3;
+  [-1,1].forEach(function(s){
+    var p=new THREE.Mesh(new THREE.BoxGeometry(0.9,12,0.9),dark);p.position.set(FIN,6,zc+s*span/2);scene.add(p);
+  });
+  var beam=new THREE.Mesh(new THREE.BoxGeometry(1.2,3.6,span+1),dark);beam.position.set(FIN,11.6,zc);scene.add(beam);
+  /* Faixas do pórtico: lado da CHEGADA (dourado) e lado da SAÍDA (verde). Mesma linha no chão (1 volta = 100% das urnas).
+     A textura tem a proporção do painel (não estica) e o texto se ajusta à largura. */
+  var BW=2048,BH=Math.max(120,Math.round(BW*3.2/(span+0.6)));
+  function drawBanner(x,w,h,txt,bg,fg){
+    x.fillStyle=bg;x.fillRect(0,0,w,h);
+    x.fillStyle=fg;x.textAlign="center";x.textBaseline="middle";
+    var fs=Math.round(h*0.62);x.font="800 "+fs+"px "+DISP;
+    var tw=x.measureText(txt).width,maxw=w*0.9;
+    if(tw>maxw){fs=Math.floor(fs*maxw/tw);x.font="800 "+fs+"px "+DISP;}
+    x.fillText(txt,w/2,h/2+fs*0.04);
+  }
+  function mkBanner(txt,bg,fg){
+    var t=canvasTex(BW,BH,function(x,w,h){drawBanner(x,w,h,txt,bg,fg);});
+    t.redraw=function(){drawBanner(t.ctx,t.canvas.width,t.canvas.height,txt,bg,fg);t.tex.needsUpdate=true;};
+    fontRedraws.push(t.redraw);return t;
+  }
+  var bnFin=mkBanner("CHEGADA · 100% DAS URNAS","#ffd23f","#1a1300");
+  var bnIni=mkBanner("SAÍDA · 0% DAS URNAS","#5fd38d","#06210f");
+  /* Ordem trocada a pedido: a face +x (vista pela câmera "Chegada") mostra SAÍDA; a face -x mostra CHEGADA */
+  [[-1,bnFin],[1,bnIni]].forEach(function(p){
+    var s=p[0],pl=new THREE.Mesh(new THREE.PlaneGeometry(span+0.6,3.2),new THREE.MeshBasicMaterial({map:p[1].tex}));
+    pl.position.set(FIN+s*0.65,11.6,zc);pl.rotation.y=s*Math.PI/2;scene.add(pl);
+  });
+})();
+
+/* ---------- Arquibancadas e torcida ---------- */
+var crowdGroups=[];
+(function(){
+  var tierMat=new THREE.MeshStandardMaterial({color:0x27324c,roughness:.9});
+  var wall=new THREE.MeshStandardMaterial({color:0x14306b,roughness:.6});
+  addRing(RO+3,RO+3.6,wall,0,1.2,false);
+  var T=6,k;
+  var palette=[0xf5f5f0,0xe8d24a,0x6fb7e8,0xe58a3a,0x8fd0a8,0xd8d8dc,0xf1a7c0,0x9aa5ff,0xffffff,0x3aa6a0];
+  var dummy=new THREE.Object3D(),col=new THREE.Color();
+  var bodyGeo=new THREE.BoxGeometry(0.62,0.72,0.42),headGeo=new THREE.SphereGeometry(0.3,7,5);
+  var bodyMat=new THREE.MeshStandardMaterial({roughness:.9}),headMat=new THREE.MeshStandardMaterial({color:0xe9b48a,roughness:.9});
+  var items=[];
+  for(k=0;k<T;k++){
+    var Rin=RO+4+k*2.4,h=1.1+k*1.15;
+    addRing(Rin,Rin+2.4,tierMat,0,h,false);
+    var Rc=Rin+1.2,per=L*2+2*Math.PI*Rc,cnt=Math.floor(per/0.86),j;
+    for(j=0;j<cnt;j++){
+      var f=j/cnt,p=pt(Rc,f),q=pt(Rc,f+0.0008),tx=q[0]-p[0],tz=q[1]-p[1],ln=Math.hypot(tx,tz)||1;tx/=ln;tz/=ln;
+      items.push({x:p[0]+(Math.random()-.5)*0.12,z:p[1]+(Math.random()-.5)*0.12,y:h,yaw:Math.atan2(tz,-tx),s:0.85+Math.random()*0.3,c:palette[(Math.random()*palette.length)|0]});
+    }
+  }
+  var G=4,g;
+  for(g=0;g<G;g++){
+    var sub=items.filter(function(_,i){return i%G===g;});
+    var bm=new THREE.InstancedMesh(bodyGeo,bodyMat,sub.length),hm=new THREE.InstancedMesh(headGeo,headMat,sub.length);
+    sub.forEach(function(it,i){
+      dummy.position.set(it.x,it.y+0.42*it.s,it.z);dummy.rotation.set(0,it.yaw,0);dummy.scale.setScalar(it.s);dummy.updateMatrix();bm.setMatrixAt(i,dummy.matrix);
+      col.setHex(it.c);bm.setColorAt(i,col);
+      dummy.position.set(it.x,it.y+1.0*it.s,it.z);dummy.updateMatrix();hm.setMatrixAt(i,dummy.matrix);
+    });
+    bm.instanceMatrix.needsUpdate=true;if(bm.instanceColor)bm.instanceColor.needsUpdate=true;hm.instanceMatrix.needsUpdate=true;
+    var grp=new THREE.Group();grp.add(bm);grp.add(hm);scene.add(grp);crowdGroups.push(grp);
+  }
+  /* mastros de iluminação */
+  var pole=new THREE.MeshStandardMaterial({color:0x1b2436,roughness:.7}),lamp=lampMat;
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(function(s){
+    var x=s[0]*(L/2+RO-6),z=s[1]*(RO+16);
+    var m=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.8,44,8),pole);m.position.set(x,22,z);scene.add(m);
+    var pan=new THREE.Mesh(new THREE.BoxGeometry(8,5,1),lamp);pan.position.set(x,46,z);pan.lookAt(0,20,0);scene.add(pan);
+  });
+})();
+
+/* ---------- Telões ---------- */
+var screenTex=canvasTex(1600,480,function(){});
+(function(){
+  var mat=new THREE.MeshBasicMaterial({map:screenTex.tex});
+  var frame=new THREE.MeshStandardMaterial({color:0x0c1322,roughness:.8});
+  [-1,1].forEach(function(s){
+    var z=s*(RO+22);
+    var fr=new THREE.Mesh(new THREE.BoxGeometry(38,11.6,1.4),frame);fr.position.set(0,38,z);scene.add(fr);
+    [-1,1].forEach(function(f){
+      var pl=new THREE.Mesh(new THREE.PlaneGeometry(36,10.8),mat);pl.position.set(0,38,z+f*0.75);pl.rotation.y=f>0?0:Math.PI;scene.add(pl);
+    });
+    [-15,15].forEach(function(px){var lg=new THREE.Mesh(new THREE.BoxGeometry(1.2,38,1.2),frame);lg.position.set(px,19,z);scene.add(lg);});
+  });
+})();
+
+/* ---------- Corredores ---------- */
+var OUT=new THREE.MeshBasicMaterial({color:0x14110f,side:THREE.BackSide});
+var SKIN=0xf1bd93;
+var skinM=new THREE.MeshStandardMaterial({color:SKIN,roughness:.8});
+var shortsM=new THREE.MeshStandardMaterial({color:0x1c2433,roughness:.8});
+var shoeM=new THREE.MeshStandardMaterial({color:0xf4f4f4,roughness:.6});
+var eyeM=new THREE.MeshBasicMaterial({color:0xffffff}),pupM=new THREE.MeshBasicMaterial({color:0x14110f});
+var noseM=new THREE.MeshStandardMaterial({color:0xe2a577,roughness:.8});
+
+function ball(r,mat,ol,sx,sy,sz){
+  var g=new THREE.Group(),m=new THREE.Mesh(new THREE.SphereGeometry(r,22,16),mat);m.castShadow=true;g.add(m);
+  if(ol)g.add(new THREE.Mesh(new THREE.SphereGeometry(r+ol,22,16),OUT));
+  g.scale.set(sx||1,sy||1,sz||1);return g;
+}
+function limb(rt,rb,len,mat){
+  var g=new THREE.Group(),geo=new THREE.CylinderGeometry(rt,rb,len,12);geo.translate(0,-len/2,0);
+  var m=new THREE.Mesh(geo,mat);m.castShadow=true;g.add(m);
+  var og=new THREE.CylinderGeometry(rt+0.025,rb+0.025,len+0.05,12);og.translate(0,-len/2,0);g.add(new THREE.Mesh(og,OUT));
+  return g;
+}
+function lum(h){var v=[1,3,5].map(function(i){var c=parseInt(h.substr(i,2),16)/255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);});return 0.2126*v[0]+0.7152*v[1]+0.0722*v[2];}
+function outlineFor(h){return lum(h)>0.35?"#0b0b0b":"#ffffff";} /* contorno do número: escuro sobre número claro, claro sobre número escuro */
+function shirtTexture(d){
+  var s=canvasTex(1024,512,function(){});
+  s.draw=function(){
+    var x=s.ctx;x.fillStyle=d.c;x.fillRect(0,0,1024,512);
+    x.fillStyle=d.s;x.fillRect(0,86,1024,22);x.fillRect(0,404,1024,22); /* faixas na cor secundária da bandeira */
+    x.textAlign="center";x.textBaseline="middle";x.lineJoin="round";
+    function txt(str,px,py,size,scx){x.save();x.translate(px,py);x.scale(scx||1,1);x.font="800 "+size+"px "+DISP;
+      x.lineWidth=size*0.11;x.strokeStyle=outlineFor(d.t);x.strokeText(str,0,0);x.fillStyle=d.t;x.fillText(str,0,0);x.restore();}
+    txt(String(d.n),256,262,250);            /* peito */
+    txt(String(d.n),768,306,250);            /* costas */
+    x.font="800 84px "+DISP;var w=x.measureText(d.short).width;
+    txt(d.short,768,168,84,Math.min(1,320/(w||1)));
+    s.tex.needsUpdate=true;
+  };
+  s.draw();fontRedraws.push(s.draw);return s;
+}
+function makeLabel(d){
+  var s=canvasTex(360,132,function(){});
+  s.sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:s.tex,transparent:true,depthTest:false}));
+  s.sprite.scale.set(9,3.3,1);s.sprite.renderOrder=20;s.sprite.visible=false;s.last="";
+  s.draw=function(pctText){
+    var x=s.ctx,w=360,h=132;x.clearRect(0,0,w,h);
+    x.fillStyle="rgba(9,15,30,.92)";x.beginPath();x.roundRect?x.roundRect(4,4,w-8,h-8,14):x.rect(4,4,w-8,h-8);x.fill();
+    x.fillStyle="#ffffff";x.fillRect(4,4,20,h-8);x.fillStyle=d.c;x.fillRect(7,7,14,h-14);
+    x.fillStyle="#eef2f8";x.textAlign="left";x.textBaseline="alphabetic";
+    x.font="600 34px "+BODY;x.fillText(d.name,36,50);
+    x.fillStyle="#ffd23f";x.font="800 62px "+DISP;x.fillText(pctText,36,108);
+    x.fillStyle="#9fb0c8";x.font="600 28px "+BODY;x.textAlign="right";x.fillText("nº "+d.n,w-20,108);
+    s.tex.needsUpdate=true;s.last=pctText;
+  };
+  return s;
+}
+
+var runners=CANDS.map(function(d,i){
+  var b=[0.9,1.05,1.25][d.build],hipY=0.99;
+  var root=new THREE.Group(),body=new THREE.Group();root.add(body);root.scale.setScalar(RS);
+  var upper=new THREE.Group();upper.position.y=hipY;body.add(upper);
+  var shirt=shirtTexture(d);
+  var shirtM=new THREE.MeshStandardMaterial({map:shirt.tex,roughness:.65});
+  var sleeveM=new THREE.MeshStandardMaterial({color:d.s,roughness:.65});
+  var shortsMd=new THREE.MeshStandardMaterial({color:d.s,roughness:.75});
+  var hairM=new THREE.MeshStandardMaterial({color:d.hair==="gray"?0xcfcfcf:0x2b2118,roughness:.9});
+
+  var browM=d.age?new THREE.MeshStandardMaterial({color:0xd6d6d0,roughness:.9}):hairM; /* sobrancelhas grisalhas nos mais velhos */
+  var torso=ball(0.5,shirtM,0.02,0.62*b,0.72,0.44);torso.position.y=1.55-hipY;upper.add(torso);
+  var shorts=ball(0.5,shortsMd,0.02,0.6*b,0.3,0.44);shorts.position.y=1.06;body.add(shorts);
+
+  var head=new THREE.Group();head.position.y=2.3-hipY;upper.add(head);
+  head.add(ball(0.46,skinM,0.025,1,1.03,1));
+  [-1,1].forEach(function(s){
+    var eye=ball(0.085,eyeM,0,1,1.15,0.6);eye.position.set(s*0.16,0.06,0.41);head.add(eye);
+    var pup=ball(0.045,pupM,0,1,1,0.6);pup.position.set(s*0.16,0.06,0.455);head.add(pup);
+    var br=new THREE.Mesh(new THREE.BoxGeometry(0.16,d.age?0.055:0.035,0.03),browM);br.position.set(s*0.16,0.2,0.43);br.rotation.z=-s*0.12;head.add(br);
+    var ear=ball(0.09,skinM,0.02,0.6,1,1);ear.position.set(s*0.455,0,0);head.add(ear);
+  });
+  var nose=ball(0.06,noseM,0,1,1,1);nose.position.set(0,-0.03,0.46);head.add(nose);
+  var mouth=new THREE.Mesh(new THREE.TorusGeometry(0.11,0.018,8,16,Math.PI),new THREE.MeshBasicMaterial({color:0x5a2a1a}));
+  mouth.rotation.z=Math.PI;mouth.position.set(0,-0.1,0.46);head.add(mouth);
+  if(d.age){ /* rugas discretas: pés de galinha e linhas do sorriso */
+    var wr=new THREE.MeshBasicMaterial({color:0x9a6a52});
+    [-1,1].forEach(function(s){
+      [-0.5,0.5].forEach(function(a){var w=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.01,0.01),wr);w.position.set(s*0.325,0.04+a*0.06,0.34);w.rotation.z=s*a*0.9;head.add(w);});
+      var nl=new THREE.Mesh(new THREE.BoxGeometry(0.014,0.11,0.012),wr);nl.position.set(s*0.2,-0.04,0.418);nl.rotation.z=-s*0.35;head.add(nl);
+    });
+  }
+
+  var cap=new THREE.Mesh(new THREE.SphereGeometry(0.49,28,14,0,Math.PI*2,0,Math.PI*0.5),hairM);cap.rotation.x=-0.42-(d.recede||0);cap.position.y=0.03;cap.castShadow=true;
+  if(d.style==="short"||d.style==="long"||d.style==="bob")head.add(cap);
+  if(d.style==="bald"){
+    [-1,1].forEach(function(s){var tf=ball(0.13,hairM,0,0.6,1.2,1.3);tf.position.set(s*0.44,0.06,-0.06);head.add(tf);});
+  }
+  if(d.style==="long"){
+    var back=ball(0.5,hairM,0.015,0.95,1.35,0.55);back.position.set(0,-0.42,-0.16);head.add(back);
+    [-1,1].forEach(function(s){var lock=ball(0.13,hairM,0,0.7,2.2,0.8);lock.position.set(s*0.4,-0.28,0.02);head.add(lock);});
+  }
+  if(d.style==="bob"){
+    var bk=ball(0.5,hairM,0.015,0.98,0.85,0.6);bk.position.set(0,-0.18,-0.14);head.add(bk);
+    [-1,1].forEach(function(s){var lk=ball(0.13,hairM,0,0.7,1.5,0.8);lk.position.set(s*0.4,-0.14,0.02);head.add(lk);});
+  }
+  if(d.beard){
+    /* barba: a cor segue o cabelo; no Lula ("beardColor") é branca, mais clara que o cabelo grisalho */
+    var beardM=d.beardColor?new THREE.MeshStandardMaterial({color:d.beardColor,roughness:.95}):hairM;
+    var bd=ball(0.46,beardM,0.02,0.95,0.5,0.92);bd.position.set(0,-0.31,0.08);head.add(bd);                 /* barba (queixo e mandíbula) */
+    var mus=ball(0.12,beardM,0,1.7,0.32,0.5);mus.position.set(0,-0.045,0.455);head.add(mus);                /* bigode */
+    [-1,1].forEach(function(s){var sb=ball(0.13,beardM,0,0.6,1.7,0.9);sb.position.set(s*0.385,-0.16,0.14);head.add(sb);}); /* costeletas */
+  }
+
+  if(d.hat){ /* chapéu panamá (opcional): aba, copa e fita preta */
+    var hatM=new THREE.MeshStandardMaterial({color:0xe3cf93,roughness:.85}),bandM=new THREE.MeshStandardMaterial({color:0x14110d,roughness:.7});
+    var hg=new THREE.Group();hg.position.set(0,0.3,0);head.add(hg);
+    var brim=new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.045,32),hatM);brim.position.y=0.02;brim.castShadow=true;hg.add(brim);
+    var crown=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.47,0.36,28),hatM);crown.position.y=0.2;crown.castShadow=true;hg.add(crown);
+    var band=new THREE.Mesh(new THREE.CylinderGeometry(0.472,0.482,0.1,28),bandM);band.position.y=0.07;hg.add(band);
+  }
+
+  var arms=[-1,1].map(function(s){
+    var sh=new THREE.Group();sh.position.set(s*(0.31*b+0.07),1.8-hipY,0);upper.add(sh);
+    var sl=ball(0.17,sleeveM,0.02,1,1,1);sh.add(sl);
+    sh.add(limb(0.095,0.085,0.34,sleeveM));
+    var el=new THREE.Group();el.position.y=-0.34;sh.add(el);
+    el.add(limb(0.08,0.07,0.32,skinM));
+    var hand=ball(0.11,skinM,0.02,1,1,1);hand.position.y=-0.34;el.add(hand);
+    return {sh:sh,el:el};
+  });
+  var legs=[-1,1].map(function(s){
+    var hp=new THREE.Group();hp.position.set(s*0.17*b,hipY,0);body.add(hp);
+    hp.add(limb(0.13,0.11,0.48,skinM));
+    var kn=new THREE.Group();kn.position.y=-0.48;hp.add(kn);
+    kn.add(limb(0.1,0.08,0.42,skinM));
+    var shoe=ball(0.13,shoeM,0.02,1,0.7,1.9);shoe.position.set(0,-0.45,0.1);kn.add(shoe);
+    return {hp:hp,kn:kn};
+  });
+
+  scene.add(root);
+  var lab=makeLabel(d);scene.add(lab.sprite);
+  root.traverse(function(o){o.userData.idx=i;});
+  return {d:d,root:root,body:body,upper:upper,arms:arms,legs:legs,ph:Math.random()*6.28,cur:0,hd:{x:1,z:0},label:lab,R:laneR(d.lane),tx:FIN,tz:laneR(d.lane)};
+});
+var ringSel=new THREE.Mesh(new THREE.RingGeometry(2.3,2.8,32),new THREE.MeshBasicMaterial({color:0xffd23f,side:THREE.DoubleSide,transparent:true,opacity:.9}));
+ringSel.rotation.x=-Math.PI/2;ringSel.visible=false;scene.add(ringSel);
+
+/* ---------- Pódio (1º e 2º lugares), visível só no modo "Vencedores" ---------- */
+var POD={h1:3.4,h2:2.2,x1:4.9,x2:-4.9,w:9.6,d:7};
+var podium=new THREE.Group();podium.visible=false;scene.add(podium);
+(function(){
+  function face(num,c1,c2){
+    var fn=function(x,w,h){
+      x.fillStyle=c1;x.fillRect(0,0,w,h);x.fillStyle=c2;x.fillRect(0,0,w,14);x.fillRect(0,h-14,w,14);
+      x.fillStyle="#1a1300";x.font="800 190px "+DISP;x.textAlign="center";x.textBaseline="middle";x.fillText(num,w/2,h/2+8);
+    };
+    var t=canvasTex(256,256,fn);t.redraw=function(){fn(t.ctx,256,256);t.tex.needsUpdate=true;};fontRedraws.push(t.redraw);return t;
+  }
+  function block(h,x,topC,c1,c2,num){
+    var f=face(num,c1,c2);
+    var side=new THREE.MeshStandardMaterial({color:c1,roughness:.55}),top=new THREE.MeshStandardMaterial({color:topC,roughness:.4,metalness:.25}),
+        front=new THREE.MeshStandardMaterial({map:f.tex,roughness:.55});
+    var m=new THREE.Mesh(new THREE.BoxGeometry(POD.w,h,POD.d),[side,side,top,side,front,side]);
+    m.position.set(x,h/2,0);m.castShadow=true;m.receiveShadow=true;podium.add(m);
+  }
+  block(POD.h1,POD.x1,0xffe27a,"#f2c230","#ad8410","1");
+  block(POD.h2,POD.x2,0xe8edf3,"#c9d1da","#7d8794","2");
+  var base=new THREE.Mesh(new THREE.BoxGeometry(POD.w*2+4,0.3,POD.d+3),new THREE.MeshStandardMaterial({color:0x14306b,roughness:.7}));
+  base.position.set(0,-0.1,0);base.receiveShadow=true;podium.add(base);
+})();
+/* pose de comemoração: braços para cima, em V; o 1º salta um pouco mais */
+function podiumPose(r,k,t){
+  var h=k===0?POD.h1:POD.h2,x=k===0?POD.x1:POD.x2,w=Math.sin(t*4+k*1.7);
+  r.root.position.set(x,h,0);r.root.rotation.y=0;
+  r.legs[0].hp.rotation.x=0;r.legs[1].hp.rotation.x=0;r.legs[0].kn.rotation.x=0;r.legs[1].kn.rotation.x=0;
+  r.arms[0].sh.rotation.x=0;r.arms[1].sh.rotation.x=0;
+  r.arms[0].sh.rotation.z=-2.4-0.12*w;r.arms[1].sh.rotation.z=2.4+0.12*w;
+  r.arms[0].el.rotation.x=-0.15;r.arms[1].el.rotation.x=-0.15;
+  r.upper.rotation.x=0;r.upper.rotation.y=0;
+  r.body.position.y=Math.abs(w)*(k===0?0.18:0.1);
+  r.label.sprite.position.set(x,h+RS*3.7,0);
+}
+/* Pódio liberado: (a) mais de 99% das urnas apuradas E diferença entre 1º e 2º maior que a margem de incerteza dos votos que faltam;
+   (b) ou 99,99% ou mais, em qualquer caso.
+   Margem: o maior entre 10% dos votos válidos que faltam (a parcela que falta pode divergir do padrão já apurado)
+   e 3,29 desvios-padrão (99,9%) do sorteio multinomial dos votos restantes. */
+var POD_MIN=99,POD_FULL=99.99,POD_SWING=0.10,POD_Z=3.29;
+function gapSignificant(){
+  if(order.length<2)return false;
+  var v1=st.val[order[0]],v2=st.val[order[1]],tot=st.vvc||st.val.reduce(function(a,b){return a+b;},0);
+  var est=estEff();
+  if(!(v2>0)||!(tot>0)||!(est>0)||!(st.te>0))return false;
+  var d=v1-v2,R=Math.max(0,st.te-est)*tot/est,swing=Math.max(POD_SWING*R,POD_Z*Math.sqrt(R));
+  return d+R*d/tot>swing;
+}
+function podiumReady(){
+  if(order.length<2||!(st.val[order[1]]>0))return false;
+  if(st.pct>=POD_FULL)return true;
+  return st.pct>POD_MIN&&gapSignificant();
+}
+function setPodium(on){
+  st.podium=!!on;podium.visible=st.podium;ringSel.visible=false;
+  $("btnpod").setAttribute("aria-pressed",st.podium?"true":"false");
+  $("podtxt").textContent=st.podium?"Voltar à corrida":"Vencedores";
+  $("btnpod").setAttribute("aria-label",st.podium?"Voltar à corrida":"Vencedores");
+  dirty=true;
+}
+
+function animateRunner(r,dt,k,idle){
+  r.ph+=dt*(idle?2.2:7.5+4*k);
+  var s=Math.sin(r.ph),A=idle?0.12:0.75+0.35*k;
+  r.legs[0].hp.rotation.x=-s*A;r.legs[1].hp.rotation.x=s*A;
+  r.legs[0].kn.rotation.x=idle?0.05:Math.max(0,Math.sin(r.ph+1.3))*1.35;
+  r.legs[1].kn.rotation.x=idle?0.05:Math.max(0,Math.sin(r.ph+1.3+Math.PI))*1.35;
+  r.arms[0].sh.rotation.x=s*A*1.05;r.arms[1].sh.rotation.x=-s*A*1.05;
+  r.arms[0].el.rotation.x=idle?-0.25:-1.15;r.arms[1].el.rotation.x=idle?-0.25:-1.15;
+  r.body.position.y=Math.abs(Math.cos(r.ph))*0.1*(0.6+k);
+  r.upper.rotation.x=idle?0.02:0.14+0.08*k;
+  r.upper.rotation.y=s*0.12;
+}
+
+/* ---------- Estado e dados ---------- */
+function zeros(){return CANDS.map(function(){return 0;});}
+var st={pct:0,share:zeros(),val:zeros(),vvc:0,te:0,est:0,ts:0,sc:0,absent:CANDS.map(function(){return false;}),offStatus:CANDS.map(function(){return "";}),
+  mode:"wait",podium:false,sel:-1,cam:"pan",updated:"",stale:false,waitErr:false};
+var order=CANDS.map(function(_,i){return i;}),rankOf=[],dirty=true,lastUI=0,lastScreen=0;
+function recompute(){
+  order=CANDS.map(function(_,i){return i;}).sort(function(a,b){return st.val[b]-st.val[a];});
+  order.forEach(function(i,k){rankOf[i]=k;});
+}
+function targets(){
+  var mx=Math.max.apply(null,st.val);
+  return CANDS.map(function(_,i){return(st.pct>0&&mx>0)?(st.pct/100)*(st.val[i]/mx):0;});
+}
+/* Modos: wait (aguardando o TSE publicar ou responder), live (dados oficiais do TSE). Não há simulação. */
+function setMode(m){
+  st.mode=m;
+  document.getElementById("app").setAttribute("data-mode",m);
+  st.pct=0;st.share=zeros();st.val=zeros();recompute();
+  dirty=true;
+}
+/* Casa os candidatos do TSE com os corredores pelo número de urna */
+function applyLive(j){
+  var byN={};j.cands.forEach(function(c){byN[c.n]=c;});
+  var hits=CANDS.filter(function(c){return byN[c.n];}).length,m;
+  if(hits===0)throw new Error("sem_candidatos_conhecidos"); /* só aceita dados reais com os números de urna dos candidatos */
+  m=CANDS.map(function(c){return byN[c.n]||null;});
+  st.pct=clamp(j.pst,0,100);
+  st.val=m.map(function(c){return c?c.vap:0;});
+  var base=(j.vvc>0)?j.vvc:st.val.reduce(function(a,b){return a+b;},0);
+  st.share=m.map(function(c){var p=c?Number(c.pvap):0;return isFinite(p)&&c&&c.pvap!==null?p:(c&&base>0?100*c.vap/base:0);});
+  st.offStatus=m.map(function(c){return c?c.stt:"";});
+  st.absent=m.map(function(c){return !c;});
+  st.vvc=j.vvc||0;st.te=j.te||0;st.est=j.est||0;st.ts=j.ts||0;st.sc=j.st||0;
+  st.comp=j.comp||0;st.abst=j.abst||0;st.tv=j.tv||0;st.vb=j.vb||0;st.vn=j.vn||0;st.vv=j.vv||0;
+  if(!amostras.length||amostras[amostras.length-1].pct!==st.pct){amostras.push({t:Date.now(),pct:st.pct});if(amostras.length>60)amostras.shift();}
+  st.updated=j.generated||"";st.stale=!!j.stale;
+  recompute();dirty=true;
+  if(modalAberto)setTimeout(renderModal,0);
+}
+var pollSeq=0,appliedSeq=0,amostras=[];
+function pollLive(){
+  if(untilStart()>0){dirty=true;return;} /* antes das 17h de 25/10: nenhuma requisição, só atualiza a contagem regressiva */
+  if(!window.fetch||document.hidden)return; /* aba em segundo plano não consulta: poupa cota; volta a consultar ao reaparecer */
+  var seq=++pollSeq,ctl=window.AbortController?new AbortController():null,tm=ctl?setTimeout(function(){ctl.abort();},20000):0;
+  fetch(API,ctl?{cache:"no-store",signal:ctl.signal}:{cache:"no-store"}).then(function(r){return r.text();}).then(function(t){
+    if(tm)clearTimeout(tm);
+    if(seq<appliedSeq)return; /* resposta atrasada, mais velha que a última aplicada: descarta */
+    appliedSeq=seq;
+    var j;try{j=JSON.parse(t);}catch(e){j=null;}
+    if(!j||typeof j.ok==="undefined"){failLive();return;} /* endereço sem a API do site, ou limite da Cloudflare */
+    if(j.ok){
+      var known=Array.isArray(j.cands)&&CANDS.some(function(c){return j.cands.some(function(x){return x.n===c.n;});});
+      if(!known){failLive();return;} /* só aceita dados reais com os números de urna dos candidatos */
+      if(st.mode!=="live")setMode("live");applyLive(j);
+    }
+    else if(st.mode==="live"){st.stale=true;dirty=true;}
+    else{st.waitErr=!(j.error==="not_published"||j.error==="not_started");dirty=true;}
+  }).catch(function(){if(tm)clearTimeout(tm);if(seq>=appliedSeq)failLive();});
+}
+function failLive(){if(st.mode==="live"){st.stale=true;}else{st.waitErr=true;}dirty=true;}
+/* Análise de cenário. Garantido: a diferença supera todos os eleitores ainda não apurados.
+   Tendência: a diferença supera o dobro dos votos válidos esperados no ritmo atual de apuração. */
+/* eleitorado das seções já apuradas; se o TSE não informar, estima pela fração de urnas apuradas */
+function estEff(){return st.est>0?st.est:(st.te>0?st.te*st.pct/100:0);}
+function analyze(){
+  if(st.mode==="wait"){
+    var ws=untilStart();
+    if(ws>0)return{lv:0,t2:0,txt:"A apuração do 2º turno começa domingo, 25/10, às 17h (Brasília). Faltam <b>"+fmtWait(ws)+"</b>."};
+    return{lv:0,t2:0,txt:st.waitErr?"O TSE não respondeu. Tentando de novo em instantes.":"Aguardando o TSE iniciar a divulgação da apuração (a partir das 17h, horário de Brasília)."};
+  }
+  if(st.pct<=0)return{lv:0,t2:0,txt:"Aguardando as primeiras urnas."};
+  var v=order.map(function(i){return st.val[i];}),n=order.map(function(i){return CANDS[i].name;});
+  var tot=st.vvc||v.reduce(function(a,b){return a+b;},0);
+  var est=estEff(),rem=Math.max(0,st.te-est),proj=est>0?rem*tot/est:Infinity;
+  if(!(st.te>0))return{lv:0,t2:0,txt:"Apuração em andamento. <b>"+n[0]+"</b> lidera com "+fmt(st.share[order[0]])+"%."}; /* sem eleitorado total não há como projetar */
+  var g12=v[0]-v[1];
+  if(st.pct>=99.995){
+    var el=-1;order.forEach(function(i){if(st.offStatus[i]==="Eleito")el=i;});
+    if(el>=0)return{lv:2,t2:0,tag:"eleito",txt:"<b>"+CANDS[el].name+"</b> é eleito presidente, segundo o TSE."};
+    return{lv:2,t2:0,tag:"mais votado",txt:"Apuração concluída. Mais votado: <b>"+n[0]+"</b>. Aguarde a proclamação oficial do TSE."};
+  }
+  /* Garantido: a diferença supera todos os eleitores das seções ainda não apuradas.
+     Tendência: supera o dobro dos votos válidos esperados no ritmo atual. */
+  if(g12>rem)return{lv:2,t2:0,tag:"garantido",txt:"Vitória de <b>"+n[0]+"</b> garantida pelos números."};
+  if(g12>2*proj)return{lv:1,t2:0,tag:"tendência",txt:"Tendência de vitória de <b>"+n[0]+"</b>."};
+  return{lv:0,t2:0,txt:"Disputa aberta. <b>"+n[0]+"</b> lidera com "+fmt(st.share[order[0]])+"%."};
+}
+
+/* ---------- HUD ---------- */
+var $=function(id){return document.getElementById(id);};
+var rowsEl=$("rows"),rowEls=[];
+CANDS.forEach(function(d,i){
+  var li=document.createElement("li");li.tabIndex=0;li.setAttribute("role","button");
+  li.innerHTML='<span class="rk"></span><span class="chip" style="background:'+d.c+';color:'+d.t+'">'+d.n+'</span><span class="nm"><b>'+d.name+'</b><span>'+d.party+'<i class="tg"></i></span></span><span class="pc">--</span>';
+  li.addEventListener("click",function(){selectRunner(i);});
+  li.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();selectRunner(i);}});
+  rowsEl.appendChild(li);rowEls.push(li);
+});
+function selectRunner(i){
+  st.sel=(st.sel===i)?-1:i;
+  if(st.sel>=0)setCam("lead");
+  dirty=true;
+}
+var rankReady=false;
+function updateUI(){
+  var an=analyze(),live=st.mode==="live";
+  $("pct").textContent=fmt(st.pct)+"%";
+  $("barfill").style.width=st.pct+"%";
+  $("status").innerHTML=an.txt;
+  $("urnas").textContent=(live&&st.ts)?st.sc.toLocaleString("pt-BR")+" de "+st.ts.toLocaleString("pt-BR")+" urnas totalizadas":"";
+  order.forEach(function(i,k){
+    var li=rowEls[i],ab=st.absent[i];li.style.order=k;li.style.display=ab?"none":"";
+    li.querySelector(".rk").textContent=k+1;
+    li.querySelector(".pc").textContent=st.pct>0?fmt(st.share[i])+"%":"--";
+    var tg=li.querySelector(".tg"),show=(k===0&&!!an.tag),txt=an.tag||"";
+    tg.className=show?("tg tag"+(an.lv===1?" lean":"")):"tg";tg.textContent=show?txt:"";
+    li.classList.toggle("sel",st.sel===i);li.classList.toggle("t3",k<3);
+    li.setAttribute("aria-label",(k+1)+"º "+d(i).name+", "+(st.pct>0?fmt(st.share[i])+"%":"sem dados"));
+  });
+  runners.forEach(function(r,i){
+    var show=st.pct>0&&!st.absent[i]&&(st.podium?rankOf[i]<2:(rankOf[i]<3||st.sel===i));
+    r.label.sprite.visible=show;r.root.visible=!st.absent[i]&&(!st.podium||rankOf[i]<2);
+    if(show){var tx=fmt(st.share[i])+"%";if(tx!==r.label.last)r.label.draw(tx);}
+  });
+  /* Classificação: só depois que chegar qualquer dado real de apuração (mesmo que mínimo) */
+  var canRank=live&&st.pct>0;
+  $("tglrank").disabled=!canRank;
+  if(!canRank&&!$("rank").classList.contains("off"))setRank(false,false);
+  if(canRank&&!rankReady){var sv="0";try{sv=localStorage.getItem("rankOpen")||"0";}catch(e){}if(sv==="1")setRank(true,false);}
+  rankReady=canRank;
+  /* diferença de votos entre o 1º e o 2º */
+  var a1=order[0],a2=order[1];
+  if(live&&st.pct>0&&a2!==undefined&&st.val[a1]>0){
+    var dv=st.val[a1]-st.val[a2],dp=st.share[a1]-st.share[a2];
+    $("gap").innerHTML="Diferença entre 1º e 2º: <b>"+fmtN(dv)+" votos</b> ("+fmt(dp)+" p.p.)";
+  }else $("gap").textContent="";
+  var temDados=live&&st.pct>0;
+  $("btnstats").disabled=!temDados;$("btngraf").disabled=!temDados;
+  if(!temDados&&modalAberto)fecharModal();
+  var canPod=live&&podiumReady();
+  $("btnpod").disabled=!canPod;
+  if(!canPod&&st.podium)setPodium(false);
+  $("modechip").textContent=live?(st.stale?"TSE · último dado":(st.pct>0?"Ao vivo · TSE":"Aguardando apuração")):"Aguardando";
+  $("modechip").className="mode"+(live&&!st.stale&&st.pct>0?" live":"");
+  $("modenote").textContent=live?("Dados oficiais do TSE, gerados em "+(st.updated||"--")+". Resultado parcial até 100% das urnas."+(st.stale?" O TSE não respondeu; mostrando o último dado recebido.":"")):
+    (untilStart()>0?"Nenhum dado é consultado antes do início da divulgação. A página começa a atualizar sozinha às 17h.":(st.waitErr?"Sem resposta do TSE. Esta página tenta de novo sozinha a cada 30 segundos.":"Esta página atualiza sozinha assim que o TSE publicar as primeiras urnas."));
+  if(live&&!st.podium&&st.pct>POD_MIN&&!canPod)$("modenote").textContent+=" O pódio será liberado com 99,99% das urnas: a diferença entre o 1º e o 2º ainda está dentro da margem de incerteza.";
+  if(leveAuto)$("modenote").textContent+=" Modo leve ativado automaticamente para deixar a página mais rápida.";
+  if(st.podium)$("modenote").textContent="Pódio com "+fmt(st.pct)+"% das urnas apuradas: os dois primeiros colocados até agora. Resultado parcial; só o TSE declara o resultado oficial.";
+}
+function d(i){return CANDS[i];}
+
+/* Telão */
+function drawScreen(){
+  var x=screenTex.ctx,W=1600,H=480;
+  x.fillStyle="#070d1a";x.fillRect(0,0,W,H);
+  x.fillStyle="#ffd23f";x.fillRect(0,0,W,12);
+  x.textBaseline="alphabetic";x.textAlign="left";
+  x.fillStyle="#9fb0c8";x.font="600 38px "+BODY;x.fillText("URNAS APURADAS",56,96);
+  x.fillStyle="#ffd23f";x.font="800 250px "+DISP;x.fillText(fmt(st.pct)+"%",48,330);
+  x.fillStyle="rgba(255,255,255,.12)";x.fillRect(56,372,700,26);
+  x.fillStyle="#ffd23f";x.fillRect(56,372,7*st.pct,26);
+  x.fillStyle="#070d1a";var k;for(k=1;k<10;k++)x.fillRect(56+k*70-2,372,4,26);
+  x.fillStyle="#9fb0c8";x.font="600 32px "+BODY;x.fillText("PRESIDENTE · 2º TURNO",56,448);
+  var top=order.filter(function(i){return !st.absent[i];}).slice(0,4);
+  top.forEach(function(i,r){
+    var y=110+r*150,dd=CANDS[i];
+    x.fillStyle="#9fb0c8";x.font="800 60px "+DISP;x.textAlign="right";x.fillText(String(r+1),900,y+44);
+    x.fillStyle=dd.c;x.beginPath();x.arc(950,y+26,34,0,6.283);x.fill();x.strokeStyle="#ffffff";x.lineWidth=4;x.stroke();
+    x.fillStyle=dd.t;x.font="800 40px "+DISP;x.textAlign="center";x.fillText(String(dd.n),950,y+40);
+    x.fillStyle="#eef2f8";x.font="600 46px "+BODY;x.textAlign="left";var nw=x.measureText(dd.name).width,nsc=Math.min(1,330/(nw||1));x.save();x.translate(1006,y+42);x.scale(nsc,1);x.fillText(dd.name,0,0);x.restore();
+    x.fillStyle="#ffd23f";x.font="800 64px "+DISP;x.textAlign="right";x.fillText(st.pct>0?fmt(st.share[i])+"%":"--",1548,y+46);
+  });
+  screenTex.tex.needsUpdate=true;
+}
+
+/* ---------- Câmera ---------- */
+var cam={az:0.35,el:0.42,dist:128,lastInt:-1e9,offAz:0,offEl:0};
+var look=new THREE.Vector3(0,3,0),wantPos=new THREE.Vector3(),wantLook=new THREE.Vector3();
+camera.position.set(0,70,150);
+function setCam(m){
+  st.cam=m;
+  Array.prototype.forEach.call(document.querySelectorAll("[data-cam]"),function(b){b.setAttribute("aria-pressed",b.getAttribute("data-cam")===m?"true":"false");});
+}
+Array.prototype.forEach.call(document.querySelectorAll("[data-cam]"),function(b){b.addEventListener("click",function(){setCam(b.getAttribute("data-cam"));});});
+function updateCamera(dt,now){
+  var kk=1-Math.exp(-dt*(st.podium||st.cam==="pan"?7:3.2));
+  if(st.podium){ /* de frente para o pódio; em telas estreitas afasta para caber os dois degraus */
+    var dd=Math.max(32,34/(2*Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+    wantPos.set(0,10,dd);wantLook.set(0,6.4,0);
+  }else if(st.cam==="pan"){
+    if(!reduced&&now-cam.lastInt>4000)cam.az+=dt*0.07;
+    var ce=Math.cos(cam.el);
+    wantPos.set(Math.sin(cam.az)*ce*cam.dist,Math.sin(cam.el)*cam.dist+4,Math.cos(cam.az)*ce*cam.dist);
+    wantLook.set(0,3,0);
+  }else if(st.cam==="lead"){
+    var r=runners[st.sel>=0?st.sel:order[0]],p=r.root.position,az=Math.atan2(r.hd.x,r.hd.z)+Math.PI+cam.offAz;
+    var el=0.3+cam.offEl,dist=22;
+    wantPos.set(p.x+Math.sin(az)*Math.cos(el)*dist,p.y+4.5+Math.sin(el)*dist,p.z+Math.cos(az)*Math.cos(el)*dist);
+    wantLook.set(p.x+r.hd.x*10,p.y+3.6,p.z+r.hd.z*10);
+  }else{
+    wantPos.set(FIN+38,8,RO+9);wantLook.set(FIN-6,3.4,(R0+RO)/2);
+  }
+  camera.position.lerp(wantPos,kk);look.lerp(wantLook,kk);camera.lookAt(look);
+}
+/* arrastar para girar, rolar para aproximar, tocar em um atleta para segui-lo */
+(function(){
+  var down=false,moved=0,lx=0,ly=0,ray=new THREE.Raycaster(),mv=new THREE.Vector2();
+  host.addEventListener("pointerdown",function(e){down=true;moved=0;lx=e.clientX;ly=e.clientY;host.setPointerCapture(e.pointerId);host.classList.add("drag");});
+  host.addEventListener("pointermove",function(e){
+    if(!down)return;var dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;moved+=Math.abs(dx)+Math.abs(dy);
+    cam.lastInt=performance.now();
+    if(st.cam==="pan"){cam.az-=dx*0.006;cam.el=clamp(cam.el+dy*0.005,0.08,1.35);}
+    else if(st.cam==="lead"){cam.offAz-=dx*0.006;cam.offEl=clamp(cam.offEl+dy*0.004,-0.2,0.8);}
+  });
+  host.addEventListener("pointerup",function(e){
+    down=false;host.classList.remove("drag");
+    if(moved<6){
+      var rc=host.getBoundingClientRect();
+      mv.set(((e.clientX-rc.left)/rc.width)*2-1,-((e.clientY-rc.top)/rc.height)*2+1);
+      ray.setFromCamera(mv,camera);
+      var hits=ray.intersectObjects(runners.map(function(r){return r.root;}),true);
+      if(hits.length){var i=hits[0].object.userData.idx;if(i!==undefined)selectRunner(i);}
+    }
+  });
+  host.addEventListener("wheel",function(e){e.preventDefault();cam.dist=clamp(cam.dist*(1+e.deltaY*0.001),50,320);cam.lastInt=performance.now();},{passive:false});
+})();
+
+/* ---------- Controles ---------- */
+$("more").addEventListener("click",function(){var r=$("rank");r.classList.toggle("open");$("more").textContent=r.classList.contains("open")?"Mostrar menos":"Ver todos os candidatos";});
+function setRank(open,save){
+  $("rank").classList.toggle("off",!open);
+  $("tglrank").setAttribute("aria-expanded",open?"true":"false");
+  $("tglrank").style.borderColor=open?"var(--gold)":"";
+  if(save){try{localStorage.setItem("rankOpen",open?"1":"0");}catch(e){}}
+}
+$("tglrank").addEventListener("click",function(){setRank($("rank").classList.contains("off"),true);});
+$("btnpod").addEventListener("click",function(){if(!$("btnpod").disabled)setPodium(!st.podium);});
+$("closerank").addEventListener("click",function(){setRank(false,true);$("tglrank").focus();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("rank").classList.contains("off"))setRank(false,true);});
+var savedRank="0";try{savedRank=localStorage.getItem("rankOpen")||"0";}catch(e){}
+setRank(savedRank==="1",false);
+pollLive();setInterval(pollLive,POLL_MS);document.addEventListener("visibilitychange",function(){if(!document.hidden)pollLive();});
+document.getElementById("app").setAttribute("data-mode","wait");
+
+/* ---------- Céu conforme a hora ---------- */
+function horaLocal(){
+  if(typeof window.CORRIDA_HORA==="number")return ((window.CORRIDA_HORA%24)+24)%24; /* só para testes */
+  var d=new Date();return d.getHours()+d.getMinutes()/60+d.getSeconds()/3600;
+}
+var cA=new THREE.Color(),cB=new THREE.Color();
+function mixHex(a,b,t){cA.set(a);cB.set(b);return "#"+cA.lerp(cB,t).getHexString();}
+function skyAt(h){
+  var i=0;while(i<SKY_K.length-2&&h>=SKY_K[i+1].h)i++;
+  var A=SKY_K[i],B=SKY_K[i+1],t=B.h>A.h?clamp((h-A.h)/(B.h-A.h),0,1):0,o={h:h};
+  ["top","mid","hor","bot","fog","hs","hg","sc","gr"].forEach(function(k){o[k]=mixHex(A[k],B[k],t);});
+  ["hi","si","st","lamp","scrim"].forEach(function(k){o[k]=A[k]+(B[k]-A[k])*t;});
+  return o;
+}
+var lastSkyKey="";
+function updateSky(force){
+  var h=horaLocal(),key=Math.round(h*30); /* recalcula a cada 2 minutos de relógio */
+  if(!force&&key===lastSkyKey)return;lastSkyKey=key;
+  var k=skyAt(h);skyNow=k;
+  drawSkyGrad(skyTex.ctx,skyTex.canvas.width,skyTex.canvas.height,k);skyTex.tex.needsUpdate=true;
+  scene.fog.color.set(k.fog);
+  hemi.color.set(k.hs);hemi.groundColor.set(k.hg);hemi.intensity=k.hi;
+  sun.color.set(k.sc);sun.intensity=k.si;
+  starsMat.opacity=k.st;starsMat.visible=k.st>0.02;
+  groundMat.color.set(k.gr);
+  lampMat.color.set(mixHex("#7d8794","#fff6d8",k.lamp));
+  /* direção da luz: arco do sol entre 6h e 18h; à noite, luz alta dos refletores do estádio */
+  var a=clamp((h-6)/12,0,1)*Math.PI,day=clamp(Math.min(h-5.5,18.5-h),0,1);
+  var dx=150*Math.cos(a),dy=45+110*Math.sin(a);
+  sun.position.set(50+(dx-50)*day,130+(dy-130)*day,70);
+  /* disco do sol no céu */
+  var el=Math.sin(a)*1.05-0.04,vis=h>5.6&&h<18.4;
+  sunSprite.visible=vis;
+  if(vis){sunSprite.position.set(900*Math.cos(a)*Math.cos(el),900*Math.sin(el)+40,-260);sunSprite.material.color.set(mixHex("#ffb070","#ffffff",clamp(Math.sin(a)*2.2,0,1)));}
+  var sc=document.getElementById("scrim");if(sc)sc.style.opacity=k.scrim.toFixed(2);
+}
+updateSky(true);
+setInterval(function(){updateSky(false);},20000);
+
+/* ---------- Janela (Estatísticas e Gráfico) ---------- */
+var modalAberto="",hist={pts:[],t:0,carregando:false};
+function abrirModal(tipo){
+  modalAberto=tipo;$("modal").hidden=false;
+  $("mtitle").textContent=tipo==="stats"?"Estatísticas da apuração":"Evolução minuto a minuto";
+  carregarHist(true);renderModal();$("mclose").focus();
+}
+function fecharModal(){var era=modalAberto;modalAberto="";$("modal").hidden=true;var b=$(era==="stats"?"btnstats":"btngraf");if(b&&!b.disabled)b.focus();}
+$("btnstats").addEventListener("click",function(){abrirModal("stats");});
+$("btngraf").addEventListener("click",function(){abrirModal("graf");});
+$("mclose").addEventListener("click",fecharModal);
+$("modal").addEventListener("click",function(e){if(e.target===$("modal"))fecharModal();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&modalAberto)fecharModal();});
+function renderModal(){if(!modalAberto)return;if(modalAberto==="stats")renderStats();else renderGrafico();}
+/* histórico gravado pelo servidor (um ponto por minuto); só é pedido com a janela aberta */
+function carregarHist(forcar){
+  if(hist.carregando||untilStart()>0||!window.fetch)return;
+  if(!forcar&&Date.now()-hist.t<60000)return;
+  hist.carregando=true;
+  fetch("/api/historico",{cache:"no-store"}).then(function(r){return r.text();}).then(function(tx){
+    var j;try{j=JSON.parse(tx);}catch(e){j=null;}
+    hist.carregando=false;hist.t=Date.now();
+    if(j&&j.ok&&Array.isArray(j.pontos)){hist.pts=j.pontos;renderModal();}
+  }).catch(function(){hist.carregando=false;hist.t=Date.now();});
+}
+setInterval(function(){if(modalAberto&&!document.hidden)carregarHist(false);},15000);
+/* série completa: histórico do servidor + o dado mais recente que a página já tem */
+function serie(){
+  var pts=hist.pts.map(function(p){
+    var tot=p.vvc||CANDS.reduce(function(a,c){return a+(p.votos[c.n]||0);},0);
+    return {t:p.t,pst:p.pst,v:CANDS.map(function(c){return p.votos[c.n]||0;}),tot:tot};
+  });
+  if(st.mode==="live"&&st.pct>0){
+    var ult=pts[pts.length-1],agora={t:Date.now(),pst:st.pct,v:st.val.slice(),tot:st.vvc||st.val.reduce(function(a,b){return a+b;},0)};
+    if(!ult||ult.pst!==agora.pst||ult.v.join()!==agora.v.join())pts.push(agora);
+  }
+  return pts.filter(function(p){return p.tot>0;});
+}
+function hhmm(t){var d=new Date(t);return (d.getHours()<10?"0":"")+d.getHours()+":"+(d.getMinutes()<10?"0":"")+d.getMinutes();}
+function compacto(v){v=Math.abs(v);return v>=1e6?(v/1e6).toFixed(v>=1e7?0:1).replace(".",",")+" mi":v>=1e3?Math.round(v/1e3)+" mil":String(Math.round(v));}
+function cor(i){return CANDS[i].c;}
+
+/* ---- Estatísticas ---- */
+function card(k,v,s2,est){return '<div class="scard"><div class="k">'+k+(est?'<span class="est">estimativa</span>':'')+'</div><div class="v">'+v+'</div>'+(s2?'<div class="s">'+s2+'</div>':'')+'</div>';}
+function pctDe(a,b){return b>0?fmt(100*a/b)+"%":"—";}
+function ritmo(){
+  var p=serie(),fim=p[p.length-1];if(!fim)return null;
+  var ini=null;for(var i=p.length-1;i>=0;i--){if(fim.t-p[i].t>=10*60000){ini=p[i];break;}}
+  if(!ini&&p.length>1&&fim.t-p[0].t>=2*60000)ini=p[0];
+  if(!ini&&amostras.length>1)ini=amostras[0],fim={t:amostras[amostras.length-1].t,pst:amostras[amostras.length-1].pct};
+  if(!ini||fim.t<=ini.t)return null;
+  var r=(fim.pst-ini.pst)/((fim.t-ini.t)/60000);return r>0?r:null;
+}
+function trocasLideranca(){
+  var p=serie(),n=0,ant=-1;
+  p.forEach(function(q){var l=q.v[0]>=q.v[1]?0:1;if(q.v[0]===q.v[1])return;if(ant>=0&&l!==ant)n++;ant=l;});
+  return {n:n,pontos:p.length};
+}
+function renderStats(){
+  var h="",r=ritmo(),tr=trocasLideranca();
+  h+='<p class="msub">Dados do arquivo oficial do TSE, gerado em '+(st.updated||"—")+'. Atualiza sozinho.</p>';
+  h+='<h3>Apuração</h3><div class="sgrid">';
+  h+=card("Urnas apuradas",fmt(st.pct)+"%",fmtN(st.sc)+" de "+fmtN(st.ts)+" seções");
+  h+=card("Ritmo da apuração",r?fmt(r)+" p.p./min":"—","últimos 10 minutos",true);
+  var eta="—";if(r&&st.pct<100){var min=(100-st.pct)/r,d=new Date(Date.now()+min*60000);eta=hhmm(d);}else if(st.pct>=100)eta="concluída";
+  h+=card("Previsão de 100%",eta,r&&st.pct<100?"se o ritmo atual se mantiver":"",st.pct<100);
+  h+='</div><h3>Disputa</h3><div class="sgrid">';
+  order.forEach(function(i,k){h+=card((k+1)+"º lugar",'<i style="background:'+cor(i)+'"></i>'+CANDS[i].name,fmtN(st.val[i])+" votos · "+fmt(st.share[i])+"%");});
+  var a1=order[0],a2=order[1];
+  if(a2!==undefined)h+=card("Diferença entre 1º e 2º",fmtN(st.val[a1]-st.val[a2])+" votos",fmt(st.share[a1]-st.share[a2])+" pontos percentuais");
+  h+=card("Trocas de liderança",tr.pontos>1?String(tr.n):"—",tr.pontos>1?"desde o início da apuração":"aguardando histórico");
+  h+='</div><h3>Participação</h3><div class="sgrid">';
+  h+=card("Eleitorado",fmtN(st.te),"total apto a votar");
+  var base=st.est||0;
+  h+=card("Comparecimento",fmtN(st.comp),pctDe(st.comp,base)+" do eleitorado das seções apuradas");
+  h+=card("Abstenção",fmtN(st.abst),pctDe(st.abst,base)+" do eleitorado das seções apuradas");
+  h+='</div><h3>Votos</h3><div class="sgrid">';
+  var tv=st.tv||(st.vv+st.vb+st.vn);
+  h+=card("Válidos",fmtN(st.vv||st.vvc),pctDe(st.vv||st.vvc,tv)+" do total");
+  h+=card("Brancos",fmtN(st.vb),pctDe(st.vb,tv)+" do total");
+  h+=card("Nulos",fmtN(st.vn),pctDe(st.vn,tv)+" do total");
+  h+='</div><p class="msub" style="margin-top:14px">Itens marcados como <span class="est">estimativa</span> são cálculos deste site. Resultado oficial: resultados.tse.jus.br.</p>';
+  $("mbody").innerHTML=h;
+}
+
+/* ---- Gráfico (SVG): % de votos válidos de cada candidato e a diferença entre eles ---- */
+function renderGrafico(){
+  var p=serie(),box=$("mbody");
+  if(p.length<2){box.innerHTML='<p class="msub">O gráfico aparece depois das primeiras atualizações do TSE (um ponto por minuto, desde as 17h).</p>';return;}
+  var W=Math.max(300,box.clientWidth||800),estreito=W<600,ml=48,mr=estreito?92:180,mt=12,mb=26,H1=estreito?220:250,H2=estreito?140:150;
+  var t0=p[0].t,t1=p[p.length-1].t;if(t1===t0)t1=t0+60000;
+  var X=function(t){return ml+(W-ml-mr)*(t-t0)/(t1-t0);};
+  var sh=p.map(function(q){return q.v.map(function(v){return 100*v/q.tot;});});
+  var lo=100,hi=0;sh.forEach(function(r){r.forEach(function(v){lo=Math.min(lo,v);hi=Math.max(hi,v);});});
+  lo=Math.max(0,Math.floor(lo-1));hi=Math.min(100,Math.ceil(hi+1));if(hi-lo<4){var m=(hi+lo)/2;lo=Math.max(0,m-2);hi=Math.min(100,m+2);}
+  var Y1=function(v){return mt+(H1-mt-mb)*(1-(v-lo)/(hi-lo));};
+  var gaps=p.map(function(q){return q.v[0]-q.v[1];});
+  var gmax=Math.max.apply(null,gaps.map(Math.abs))*1.1||1;
+  var Y2=function(v){return mt+(H2-mt-mb)*(1-v/gmax);};
+  function eixoX(H){var s2="",n=Math.max(2,Math.min(6,p.length,Math.floor((W-ml-mr)/72)+1)),k;for(k=0;k<n;k++){var t=t0+(t1-t0)*k/(n-1),x=X(t);s2+='<text x="'+x.toFixed(1)+'" y="'+(H-6)+'" fill="#9fb0c8" font-size="11" text-anchor="middle">'+hhmm(t)+'</text>';}return s2;}
+  function grade(H,Y,vals,fmtv){return vals.map(function(v){var y=Y(v).toFixed(1);return '<line x1="'+ml+'" x2="'+(W-mr)+'" y1="'+y+'" y2="'+y+'" stroke="rgba(255,255,255,.08)"/><text x="'+(ml-8)+'" y="'+(+y+4)+'" fill="#9fb0c8" font-size="11" text-anchor="end">'+fmtv(v)+'</text>';}).join("");}
+  var ticks1=[],k;for(k=0;k<=4;k++)ticks1.push(lo+(hi-lo)*k/4);
+  var ticks2=[];for(k=0;k<=3;k++)ticks2.push(gmax*k/3/1.1*1.1);
+  /* painel 1 */
+  var s1='<svg viewBox="0 0 '+W+' '+H1+'" role="img" aria-label="Porcentagem de votos válidos de cada candidato ao longo da apuração">'+grade(H1,Y1,ticks1,function(v){return (hi-lo<=10?fmt(v):v.toFixed(0))+"%";})+eixoX(H1);
+  CANDS.forEach(function(c,i){
+    var d=sh.map(function(r,j){return (j?"L":"M")+X(p[j].t).toFixed(1)+" "+Y1(r[i]).toFixed(1);}).join(" ");
+    var lx=X(t1),ly=Y1(sh[sh.length-1][i]);
+    s1+='<path d="'+d+'" fill="none" stroke="'+c.c+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    s1+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="4.5" fill="'+c.c+'" stroke="#0d1528" stroke-width="2"/>';
+  });
+  /* rótulos diretos no fim das linhas, afastados para não colidirem */
+  var lab=CANDS.map(function(c,i){return {i:i,y:Y1(sh[sh.length-1][i])};}).sort(function(a,b){return a.y-b.y;});
+  if(lab.length>1&&lab[1].y-lab[0].y<30){var mid=(lab[0].y+lab[1].y)/2;lab[0].y=mid-15;lab[1].y=mid+15;}
+  lab.forEach(function(L){var c=CANDS[L.i];s1+='<text x="'+(X(t1)+10)+'" y="'+(L.y+4).toFixed(1)+'" fill="#eef2f8" font-size="12" font-weight="600">'+(estreito?c.short:c.name)+' '+fmt(sh[sh.length-1][L.i])+'%</text>';});
+  s1+='<line id="gx1" y1="'+mt+'" y2="'+(H1-mb)+'" stroke="rgba(255,255,255,.35)" visibility="hidden"/><rect id="ghit1" x="'+ml+'" y="0" width="'+(W-ml-mr)+'" height="'+H1+'" fill="transparent"/></svg>';
+  /* painel 2: diferença de votos, colorida por quem lidera em cada trecho */
+  var s2='<svg viewBox="0 0 '+W+' '+H2+'" role="img" aria-label="Diferença de votos entre o primeiro e o segundo colocado">'+grade(H2,Y2,ticks2,compacto)+eixoX(H2);
+  for(k=1;k<p.length;k++){var g0=Math.abs(gaps[k-1]),g1=Math.abs(gaps[k]),li=gaps[k]>=0?0:1;
+    s2+='<line x1="'+X(p[k-1].t).toFixed(1)+'" y1="'+Y2(g0).toFixed(1)+'" x2="'+X(p[k].t).toFixed(1)+'" y2="'+Y2(g1).toFixed(1)+'" stroke="'+cor(li)+'" stroke-width="2" stroke-linecap="round"/>';}
+  var gl=gaps[gaps.length-1],lider=gl>=0?0:1;
+  s2+='<circle cx="'+X(t1).toFixed(1)+'" cy="'+Y2(Math.abs(gl)).toFixed(1)+'" r="4.5" fill="'+cor(lider)+'" stroke="#0d1528" stroke-width="2"/>';
+  s2+='<text x="'+(X(t1)+10)+'" y="'+(Y2(Math.abs(gl))+4).toFixed(1)+'" fill="#eef2f8" font-size="12" font-weight="600">'+compacto(gl)+' votos</text>';
+  s2+='<line id="gx2" y1="'+mt+'" y2="'+(H2-mb)+'" stroke="rgba(255,255,255,.35)" visibility="hidden"/><rect id="ghit2" x="'+ml+'" y="0" width="'+(W-ml-mr)+'" height="'+H2+'" fill="transparent"/></svg>';
+  var leg='<div class="gleg">'+CANDS.map(function(c){return '<span><i style="background:'+c.c+'"></i>'+c.name+' ('+c.party+')</span>';}).join("")+'</div>';
+  var tab='<details><summary>Ver tabela</summary><table class="tbl"><thead><tr><th>Hora</th><th>Urnas</th>'+CANDS.map(function(c){return '<th>'+c.short+'</th>';}).join("")+'<th>Diferença</th></tr></thead><tbody>'+
+    p.slice().reverse().map(function(q,j){var jj=p.length-1-j;return '<tr><td>'+hhmm(q.t)+'</td><td>'+fmt(q.pst)+'%</td>'+sh[jj].map(function(v){return '<td>'+fmt(v)+'%</td>';}).join("")+'<td>'+fmtN(Math.abs(gaps[jj]))+'</td></tr>';}).join("")+'</tbody></table></details>';
+  box.innerHTML='<p class="msub">Um ponto por minuto desde o início da apuração (dados do TSE). Passe o mouse sobre o gráfico para ver cada momento.</p>'+leg+
+    '<h3>Votos válidos (%)</h3><div class="gwrap" id="gw1">'+s1+'</div><h3>Diferença entre 1º e 2º (votos)</h3><div class="gwrap" id="gw2">'+s2+'<div class="gtip" id="gtip" hidden></div></div>'+tab;
+  /* dica ao passar o mouse: linha vertical nos dois painéis e valores do momento */
+  function mover(e,svg){
+    var rc=svg.getBoundingClientRect(),xv=(e.clientX-rc.left)*W/rc.width,t=t0+(xv-ml)/(W-ml-mr)*(t1-t0),j=0,best=1e18;
+    p.forEach(function(q,ii){var dd=Math.abs(q.t-t);if(dd<best){best=dd;j=ii;}});
+    var xx=X(p[j].t).toFixed(1);["gx1","gx2"].forEach(function(id){var l=$(id);l.setAttribute("x1",xx);l.setAttribute("x2",xx);l.setAttribute("visibility","visible");});
+    var tip=$("gtip");tip.hidden=false;
+    tip.innerHTML='<b>'+hhmm(p[j].t)+'</b> · '+fmt(p[j].pst)+'% das urnas<br>'+CANDS.map(function(c,i){return '<span style="color:'+c.c+'">●</span> '+c.name+': '+fmt(sh[j][i])+'%';}).join("<br>")+'<br>Diferença: '+fmtN(Math.abs(gaps[j]))+' votos';
+    var gw=$("gw2").getBoundingClientRect(),px=(+xx)*gw.width/W;tip.style.left=Math.min(gw.width-tip.offsetWidth-4,Math.max(0,px+12))+"px";tip.style.top="8px";
+  }
+  function sair(){["gx1","gx2"].forEach(function(id){$(id).setAttribute("visibility","hidden");});$("gtip").hidden=true;}
+  ["ghit1","ghit2"].forEach(function(id){var r=$(id),svg=r.ownerSVGElement;r.addEventListener("mousemove",function(e){mover(e,svg);});r.addEventListener("mouseleave",sair);
+    r.addEventListener("touchstart",function(e){if(e.touches[0])mover(e.touches[0],svg);},{passive:true});});
+}
+
+/* ---------- Loop ---------- */
+function resize(){
+  var w=host.clientWidth||window.innerWidth,h=host.clientHeight||window.innerHeight;
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+window.addEventListener("resize",resize);
+if(window.ResizeObserver)new ResizeObserver(resize).observe(host);
+resize();
+/* ---------- Modo leve ---------- */
+var leve=false,leveAuto=false,lastDraw=0,fpsN=0,fpsT0=0,fpsFeito=false,T_INI=performance.now();
+function aplicarLeve(on,origem){ /* origem: "botao" (salva a escolha), "auto" ou "inicio" */
+  leve=!!on;
+  var dpr=window.devicePixelRatio||1;
+  renderer.setPixelRatio(on?Math.min(dpr,1)*0.7:Math.min(dpr,2));
+  if(renderer.shadowMap)renderer.shadowMap.enabled=!on;
+  sun.castShadow=!on;
+  scene.traverse(function(o){if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){m.needsUpdate=true;});});
+  crowdGroups.forEach(function(g){g.visible=!on;});   /* torcida desligada no modo leve */
+  $("btnleve").setAttribute("aria-pressed",on?"true":"false");
+  leveAuto=on&&origem==="auto";
+  if(origem==="botao"){try{localStorage.setItem("modoLeve",on?"1":"0");}catch(e){}}
+  resize();dirty=true;
+}
+$("btnleve").addEventListener("click",function(){aplicarLeve(!leve,"botao");});
+if(LEVE_INI)aplicarLeve(true,"inicio");
+
+var lastT=performance.now(),tmp=new THREE.Vector3();
+function frame(now){
+  requestAnimationFrame(frame);
+  /* mede a fluidez entre 2 s e 8 s depois de abrir; abaixo de 24 quadros/s, liga o modo leve sozinho
+     (a não ser que a pessoa já tenha desligado o modo leve pelo botão) */
+  if(!fpsFeito&&!leve){var tt=now-T_INI;if(tt>2000){if(!fpsT0)fpsT0=now;fpsN++;if(tt>8000){fpsFeito=true;var fps=fpsN*1000/(now-fpsT0);if(fps<24&&LEVE_SALVO!=="0")aplicarLeve(true,"auto");}}}
+  if(leve&&now-lastDraw<32)return; /* modo leve: no máximo ~30 quadros por segundo */
+  lastDraw=now;
+  var dtReal=Math.min(1,Math.max(0,(now-lastT)/1000)),dt=Math.min(0.05,dtReal);lastT=now;
+  /* deslocamento na pista usa o tempo real (não o número de quadros): celulares lentos chegam à posição no mesmo tempo */
+  var tg=targets(),kk=1-Math.exp(-dtReal*1.8);
+  runners.forEach(function(r,i){
+    if(st.podium&&rankOf[i]<2){podiumPose(r,rankOf[i],now/1000);return;}
+    r.arms[0].sh.rotation.z=0;r.arms[1].sh.rotation.z=0;
+    var prev=r.cur;r.cur+=(tg[i]-r.cur)*kk;
+    var moving=Math.abs(tg[i]-r.cur)>0.0004||Math.abs(r.cur-prev)>1e-6;
+    var p=pt(r.R,r.cur),q=pt(r.R,r.cur+0.0015),hx=q[0]-p[0],hz=q[1]-p[1],ln=Math.hypot(hx,hz)||1;
+    r.hd.x=hx/ln;r.hd.z=hz/ln;
+    r.root.position.set(p[0],0,p[1]);r.root.rotation.y=Math.atan2(r.hd.x,r.hd.z);
+    animateRunner(r,dt,moving?1:0.35,st.pct<=0);
+    r.label.sprite.position.set(p[0],RS*3.55,p[1]);
+  });
+  if(st.sel>=0&&!st.podium){var sp=runners[st.sel].root.position;ringSel.position.set(sp.x,0.08,sp.z);ringSel.visible=true;}else ringSel.visible=false;
+  if(!reduced&&!leve){var t=now/1000;crowdGroups.forEach(function(g,k){g.position.y=Math.abs(Math.sin(t*(2.2+k*0.35)+k*1.7))*0.22*(st.pct>0?1:0.3);});}
+  if(dirty&&now-lastUI>120){dirty=false;lastUI=now;updateUI();}
+  if(now-lastScreen>250){lastScreen=now;drawScreen();}
+  updateCamera(dt,now);
+  renderer.render(scene,camera);
+}
+function redrawFonts(){fontRedraws.forEach(function(f){f();});runners.forEach(function(r){r.label.last="";});dirty=true;}
+if(document.fonts&&document.fonts.load){
+  Promise.all([document.fonts.load("800 100px 'Big Shoulders Display'"),document.fonts.load("600 30px Barlow")]).then(redrawFonts,redrawFonts);
+}
+recompute();updateUI();
+if(window.innerWidth/window.innerHeight<0.8)setCam("lead"); /* celular em pé: acompanha o líder */
+requestAnimationFrame(frame);
+})();
+</script>
+
+</html>

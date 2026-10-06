@@ -1,0 +1,16 @@
+{
+  // Corrida para a Presidência · 2º turno: Worker + arquivos estáticos (Cloudflare Workers)
+  "name": "corridaparapresidencia",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    // Arquivos de public/ são servidos direto (sem gastar cota); o Worker só roda para /api/*
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  // Agendador: a cada minuto o Worker grava um ponto do histórico (só durante a apuração)
+  "triggers": { "crons": ["* * * * *"] },
+  // Armazenamento do histórico minuto a minuto (Durable Object com SQLite, disponível no plano grátis)
+  "durable_objects": { "bindings": [{ "name": "HIST", "class_name": "Historico" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Historico"] }]
+}
