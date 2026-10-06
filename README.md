@@ -32,6 +32,7 @@ Todos os números vêm da divulgação oficial do TSE.
 | **Gráfico minuto a minuto** | Botão com a evolução do % de votos válidos de cada candidato e da diferença entre eles, desde as 17h, com tabela e dica ao passar o mouse. |
 | **Histórico no servidor** | A cada minuto o próprio servidor consulta o TSE e grava um ponto (o TSE só mantém o arquivo mais recente). Funciona mesmo sem ninguém com o site aberto. |
 | **Modo leve** | Para computadores e celulares mais lentos: menos resolução, sem sombras, sem torcida, até 30 quadros/s. Liga sozinho se a página ficar lenta, pelo botão ou pelo endereço com `?leve=1`. |
+| **Letreiro de notícias** | Faixa no pé da página, estilo canal de notícias, com os números do TSE passando em sequência: urnas apuradas, 1º e 2º colocados, diferença, cenário, comparecimento, abstenção, brancos, nulos e ritmo (estimativa). Antes da apuração, mostra a data e a contagem regressiva. Para ao passar o mouse e tem botão de pausa; quem prefere menos movimento no sistema vê uma notícia por vez. |
 | **Painel de controle** | O programa em Python (`painel/`) também foi atualizado: 2º turno, diferença de votos e janela com o gráfico. |
 
 ## 📏 Regras da corrida

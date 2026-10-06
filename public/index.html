@@ -133,6 +133,30 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px;margin-top:10px}
 }
 @media (max-width:760px) and (max-height:640px){.status{display:none}.rank{display:none}}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}.rank{transition:none}}
+/* ---- Letreiro (ticker) no rodapé, estilo canal de notícias ---- */
+.ticker{position:absolute;left:0;right:0;bottom:0;height:32px;display:flex;align-items:stretch;z-index:5;background:rgba(5,9,20,.92);border-top:2px solid var(--gold);font:600 14px/32px var(--body);color:var(--fg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.tk-tag{flex:none;display:flex;align-items:center;gap:7px;padding:0 12px;background:#c8102e;color:#fff;font:800 15px/1 var(--disp);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.tk-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:#fff}
+.ticker.live .tk-tag::before{animation:tkpulse 1.4s ease-in-out infinite}
+.ticker.wait .tk-tag{background:#2b3a5c}
+@keyframes tkpulse{50%{opacity:.25}}
+.tk-win{position:relative;flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
+.tk-track{position:absolute;left:0;top:0;display:flex;white-space:nowrap;will-change:transform;animation:tkroll var(--tkdur,40s) linear infinite}
+.ticker:hover .tk-track,.ticker.paused .tk-track{animation-play-state:paused}
+@keyframes tkroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tk-it{display:inline-flex;align-items:center;gap:6px;padding:0 6px;font-variant-numeric:tabular-nums}
+.tk-it b{color:var(--gold);font-weight:700;letter-spacing:.04em}
+.tk-it i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.tk-it .tk-est{font-size:11px;color:var(--dim)}
+.tk-sep{display:inline-block;padding:0 10px;color:var(--gold);opacity:.8}
+.tk-btn{flex:none;width:34px;background:rgba(255,255,255,.06);border:0;border-left:1px solid var(--line);color:var(--fg);cursor:pointer;font-size:12px;padding:0}
+.tk-btn:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+/* sem animação (preferência do sistema): uma notícia por vez, trocando a cada 5 s */
+.ticker.static .tk-track{animation:none;position:static;padding-left:10px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ctrl{bottom:42px}
+.rank{max-height:calc(100% - 360px)}
+@media (max-width:760px){.rank{bottom:282px}.ticker{font-size:13px}.tk-tag{font-size:13px;padding:0 9px}}
 </style>
 
 <div id="app">
@@ -173,6 +197,12 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px;margin-top:10px}
     </div>
     <p class="aviso"><b>Aviso:</b> site independente, sem qualquer vínculo com o Tribunal Superior Eleitoral (TSE), com candidatos ou partidos. Os números vêm da divulgação do TSE, mas podem ter atraso ou falhas, e as indicações de tendência são apenas estimativas. Para saber quem foi eleito, use somente as fontes oficiais do TSE (<a href="https://resultados.tse.jus.br" target="_blank" rel="noopener">resultados.tse.jus.br</a>).</p>
   </footer>
+  <div class="ticker wait" id="ticker" role="region" aria-label="Resumo da apuração">
+    <span class="tk-tag" id="tktag">2º turno</span>
+    <div class="tk-win"><div class="tk-track" id="tktrack" aria-hidden="true"></div></div>
+    <span class="sr-only" id="tksr"></span>
+    <button type="button" class="tk-btn" id="tkpause" aria-label="Pausar letreiro" aria-pressed="false" title="Pausar letreiro">&#10074;&#10074;</button>
+  </div>
   <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mtitle">
     <div class="mbox">
       <div class="mhead"><h2 id="mtitle"></h2><button type="button" class="x" id="mclose" aria-label="Fechar">&times;</button></div>
@@ -798,6 +828,7 @@ function updateUI(){
   if(live&&!st.podium&&st.pct>POD_MIN&&!canPod)$("modenote").textContent+=" O pódio será liberado com 99,99% das urnas: a diferença entre o 1º e o 2º ainda está dentro da margem de incerteza.";
   if(leveAuto)$("modenote").textContent+=" Modo leve ativado automaticamente para deixar a página mais rápida.";
   if(st.podium)$("modenote").textContent="Pódio com "+fmt(st.pct)+"% das urnas apuradas: os dois primeiros colocados até agora. Resultado parcial; só o TSE declara o resultado oficial.";
+  atualizarTicker();
 }
 function d(i){return CANDS[i];}
 
@@ -1018,6 +1049,89 @@ function renderStats(){
   $("mbody").innerHTML=h;
 }
 
+
+/* ---- Letreiro (ticker): só dados que vieram do TSE, ou cálculos marcados como estimativa ---- */
+var tk={atual:"",pend:"",fase:"",idx:0,itens:[],pausado:false,estatico:reduced};
+function tkTxt(h){var d=document.createElement("div");d.innerHTML=h;return d.textContent;}
+function tickerItens(){
+  var it=[],live=st.mode==="live";
+  if(!live||st.pct<=0){
+    it.push("<b>2º TURNO</b> "+CANDS.map(function(c){return '<i style="background:'+c.c+'"></i>'+c.name+" ("+c.party+" · "+c.n+")";}).join(" × "));
+    if(untilStart()>0){
+      it.push("<b>APURAÇÃO</b> começa domingo, 25/10, às 17h (Brasília)");
+      it.push("Faltam <b>"+fmtWait(untilStart())+"</b>");
+      it.push("Nenhum dado é consultado antes do início da divulgação");
+    }else{
+      it.push(st.waitErr?"O TSE não respondeu. Nova tentativa a cada 30 segundos":"<b>AGUARDANDO</b> as primeiras urnas do TSE");
+      it.push("A página atualiza sozinha, sem recarregar");
+    }
+    it.push("Números do arquivo oficial do TSE");
+    it.push("Resultado oficial: <b>resultados.tse.jus.br</b>");
+    return it;
+  }
+  var an=analyze();
+  it.push("<b>URNAS APURADAS</b> "+fmt(st.pct)+"%"+(st.ts?" · "+fmtN(st.sc)+" de "+fmtN(st.ts)+" seções":""));
+  order.forEach(function(i,k){if(!st.absent[i])it.push("<b>"+(k+1)+"º</b> "+'<i style="background:'+cor(i)+'"></i>'+CANDS[i].name+" "+fmt(st.share[i])+"% · "+fmtN(st.val[i])+" votos");});
+  var a1=order[0],a2=order[1];
+  if(a2!==undefined)it.push("<b>DIFERENÇA</b> "+fmtN(st.val[a1]-st.val[a2])+" votos ("+fmt(st.share[a1]-st.share[a2])+" p.p.)");
+  if(an.txt)it.push("<b>CENÁRIO</b> "+tkTxt(an.txt));
+  var base=st.est||0;
+  if(st.comp>0)it.push("<b>COMPARECIMENTO</b> "+fmtN(st.comp)+(base?" ("+pctDe(st.comp,base)+")":""));
+  if(st.abst>0)it.push("<b>ABSTENÇÃO</b> "+fmtN(st.abst)+(base?" ("+pctDe(st.abst,base)+")":""));
+  var tv=st.tv||((st.vv||0)+(st.vb||0)+(st.vn||0));
+  if(st.vb>0)it.push("<b>BRANCOS</b> "+fmtN(st.vb)+" ("+pctDe(st.vb,tv)+")");
+  if(st.vn>0)it.push("<b>NULOS</b> "+fmtN(st.vn)+" ("+pctDe(st.vn,tv)+")");
+  var r=ritmo();
+  if(r&&st.pct<100){
+    it.push("<b>RITMO</b> "+fmt(r)+" p.p. por minuto <span class=\"tk-est\">(estimativa)</span>");
+    it.push("<b>PREVISÃO DE 100%</b> "+hhmm(Date.now()+(100-st.pct)/r*60000)+" <span class=\"tk-est\">(estimativa)</span>");
+  }
+  if(hist.pts.length>1){var tr=trocasLideranca();it.push("<b>TROCAS DE LIDERANÇA</b> "+tr.n);}
+  it.push("Dados do TSE gerados em "+(st.updated||"—")+(st.stale?" · último dado recebido":""));
+  it.push("Resultado oficial: <b>resultados.tse.jus.br</b>");
+  return it;
+}
+function tkMontar(itens){
+  var tr=$("tktrack");tk.itens=itens;
+  if(tk.estatico){tk.idx=tk.idx%itens.length;tr.innerHTML='<span class="tk-it">'+itens[tk.idx]+'</span>';return;}
+  var seq=itens.map(function(h){return '<span class="tk-it">'+h+'</span>';}).join('<span class="tk-sep">◆</span>')+'<span class="tk-sep">◆</span>';
+  tr.innerHTML=seq;
+  /* repete a sequência até cobrir a largura da tela; depois duplica (anda 50% e volta sem emenda) */
+  var win=tr.parentNode.clientWidth||1000,w=tr.scrollWidth||1,meia=seq,n=1;
+  while(w*n<win&&n<8){meia+=seq;n++;}
+  tr.innerHTML=meia+meia;
+  var px=(tr.scrollWidth||w*n*2)/2;
+  tr.style.setProperty("--tkdur",Math.max(15,px/75).toFixed(1)+"s"); /* ~75 px por segundo */
+  tr.style.animation="none";void tr.offsetWidth;tr.style.animation="";
+}
+function atualizarTicker(){
+  var live=st.mode==="live"&&st.pct>0,t=$("ticker");
+  t.classList.toggle("live",live&&!st.stale);t.classList.toggle("wait",!live);
+  $("tktag").textContent=live?(st.stale?"Último dado":"Ao vivo"):"2º turno";
+  var itens=tickerItens(),chave=itens.join("|");
+  if(chave===tk.atual||chave===tk.pend)return;
+  $("tksr").textContent=itens.map(tkTxt).join(". ");
+  /* primeira vez: monta já; depois, troca só no fim da volta, para o texto não "pular" */
+  /* mudou a fase (espera → ao vivo → último dado): troca já */
+  var fase=live?(st.stale?"s":"l"):"w",mudou=fase!==tk.fase;tk.fase=fase;
+  if(!tk.atual||tk.estatico||mudou){tk.atual=chave;tk.pend="";tkMontar(itens);}else{tk.pend=chave;tk.pendItens=itens;}
+}
+$("tktrack").addEventListener("animationiteration",function(){if(tk.pend){tk.atual=tk.pend;tk.pend="";tkMontar(tk.pendItens);}});
+if(tk.estatico)$("ticker").classList.add("static");
+setInterval(function(){
+  if(tk.estatico&&!tk.pausado&&tk.itens.length){
+    if(tk.pend){tk.atual=tk.pend;tk.pend="";tk.itens=tk.pendItens;}
+    tk.idx=(tk.idx+1)%tk.itens.length;tkMontar(tk.itens);
+  }
+},5000);
+$("tkpause").addEventListener("click",function(){
+  tk.pausado=!tk.pausado;$("ticker").classList.toggle("paused",tk.pausado);
+  this.setAttribute("aria-pressed",tk.pausado?"true":"false");
+  this.setAttribute("aria-label",tk.pausado?"Continuar letreiro":"Pausar letreiro");this.title=this.getAttribute("aria-label");
+  this.innerHTML=tk.pausado?"&#9654;":"&#10074;&#10074;";
+  if(!tk.pausado&&tk.pend&&!tk.estatico){tk.atual=tk.pend;tk.pend="";tkMontar(tk.pendItens);}
+});
+var tkLarg=0;window.addEventListener("resize",function(){var w=window.innerWidth;if(Math.abs(w-tkLarg)>40&&tk.itens.length){tkLarg=w;tkMontar(tk.itens);}});
 /* ---- Gráfico (SVG): % de votos válidos de cada candidato e a diferença entre eles ---- */
 function renderGrafico(){
   var p=serie(),box=$("mbody");
