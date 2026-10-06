@@ -681,7 +681,7 @@ var torcedores=[];
   var corpoG=new THREE.CylinderGeometry(0.55,0.6,1.9,10),pernaG=new THREE.CylinderGeometry(0.5,0.45,1.5,10),cabG=new THREE.SphereGeometry(0.55,14,10),
       bracoG=new THREE.CylinderGeometry(0.16,0.16,1.4,6),mastroG=new THREE.CylinderGeometry(0.06,0.06,4.2,6),
       bandG=new THREE.PlaneGeometry(2.4,1.5,8,1),faixaG=new THREE.PlaneGeometry(2.4,0.35,8,1);
-  var fileiras=[{z:-15,n:13,dx:2.7},{z:-18.5,n:14,dx:2.7},{z:-22,n:16,dx:2.6}];
+  var fileiras=[{z:-21,n:14,dx:2.8},{z:-24.5,n:15,dx:2.8},{z:-28,n:17,dx:2.7}];
   var semente=7;function rnd(){semente=(semente*16807)%2147483647;return semente/2147483647;}
   fileiras.forEach(function(f,fi){
     for(var k=0;k<f.n;k++){
