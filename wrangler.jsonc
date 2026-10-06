@@ -12,5 +12,8 @@
   "triggers": { "crons": ["* * * * *"] },
   // Armazenamento do histórico minuto a minuto (Durable Object com SQLite, disponível no plano grátis)
   "durable_objects": { "bindings": [{ "name": "HIST", "class_name": "Historico" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Historico"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Historico"] }],
+  // Logs do Worker no painel da Cloudflare (Workers > corridaparapresidencia > Logs): mostram, a cada minuto,
+  // o que o agendador gravou e qualquer erro (útil na noite da apuração)
+  "observability": { "enabled": true }
 }

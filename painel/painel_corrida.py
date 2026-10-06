@@ -12,7 +12,7 @@ no dia da apuração, se tudo está funcionando:
     respondendo e lendo o TSE;
   * mostra a última atualização dos dados, o andamento da apuração e os
     totais (eleitorado, comparecimento, válidos, brancos, nulos);
-  * mostra a classificação dos 13 candidatos, que se reordena sozinha, com
+  * mostra a classificação dos 2 candidatos, que se reordena sozinha, com
     animação, à medida que os votos chegam (setas indicam quem subiu/desceu);
   * luzes de estado: VERDE = funcionando, AMARELO = atenção, VERMELHO = erro;
   * botões para abrir o site e a página oficial do TSE no navegador.
@@ -29,6 +29,7 @@ do macOS; no Linux: sudo apt install python3-tk).
 
 import argparse
 import json
+import math
 import os
 import queue
 import ssl
@@ -61,10 +62,12 @@ ARQ_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "painel_co
 def ler_config():
     cfg = {}
     try:
-        with open(ARQ_CONFIG, encoding="utf-8") as f:
+        with open(ARQ_CONFIG, encoding="utf-8-sig") as f:  # utf-8-sig: aceita arquivo salvo "com BOM" (Bloco de Notas)
             cfg = json.load(f)
     except (OSError, ValueError):
         pass
+    if not isinstance(cfg, dict):  # ex.: arquivo com [] ou null
+        cfg = {}
     tok = (os.environ.get("CF_API_TOKEN") or str(cfg.get("cf_api_token", ""))).strip()
     acc = (os.environ.get("CF_ACCOUNT_ID") or str(cfg.get("cf_account_id", ""))).strip()
     # valores de exemplo ("COLE_...") contam como não preenchidos
@@ -176,7 +179,8 @@ def num(v):
 
 
 def ok_num(x):
-    return x == x and x not in (float("inf"), float("-inf"))  # descarta NaN/inf
+    """Número de verdade (descarta None, texto, NaN e infinito)."""
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
 def coletar_candidatos(no, saida):
@@ -275,7 +279,17 @@ def baixar_json(url):
 
 
 def ciclo_de_consulta(fila, arquivo_local):
-    """Faz uma rodada completa: TSE + site. Coloca o resultado na fila da interface."""
+    """Faz uma rodada completa: TSE + site. Coloca o resultado na fila da interface (sempre, mesmo com erro)."""
+    try:
+        _ciclo(fila, arquivo_local)
+    except Exception as ex:
+        fila.put({"quando": time.time(),
+                  "tse": {"ok": False, "ms": 0, "http": None, "dados": None, "erro": "falha interna: " + repr(ex)[:100]},
+                  "site": {"status": None, "ms": 0, "http": None, "erro": "não consultado", "verificar": None, "ms_ver": 0,
+                           "http_ver": None, "erro_ver": "não consultado", "resultado": None, "ms_res": 0, "erro_res": "não consultado"}})
+
+
+def _ciclo(fila, arquivo_local):
     res = {"quando": time.time()}
 
     # 1) TSE (ou arquivo local, no modo de teste do painel)
@@ -419,10 +433,10 @@ class Painel:
         linha = tk.Frame(self.raiz, bg=C["fundo"]); linha.pack(fill="x", padx=18, pady=(0, 10))
         self.faixa = tk.Label(linha, text="Verificando…", bg=C["neutro"], fg="#0b1020", font=self.f["med_b"], pady=7, anchor="w", padx=14)
         bts = tk.Frame(linha, bg=C["fundo"]); bts.pack(side="right")
-        self._botao(bts, "🌐 Abrir o site", lambda: webbrowser.open(URL_SITE), C["ouro"], "#1a1300").pack(side="left", padx=(0, 6))
-        self._botao(bts, "🗳 Resultados do TSE", lambda: webbrowser.open(URL_TSE_PAGINA), C["card2"], C["texto"]).pack(side="left", padx=(0, 6))
-        self._botao(bts, "🔎 /api/verificar", lambda: webbrowser.open(URL_SITE + "/api/verificar"), C["card2"], C["texto"]).pack(side="left", padx=(0, 6))
-        self._botao(bts, "📈 Gráfico", self.abrir_grafico, C["card2"], C["texto"]).pack(side="left", padx=(0, 6))
+        self._botao(bts, "↗ Abrir o site", lambda: webbrowser.open(URL_SITE), C["ouro"], "#1a1300").pack(side="left", padx=(0, 6))
+        self._botao(bts, "↗ Resultados do TSE", lambda: webbrowser.open(URL_TSE_PAGINA), C["card2"], C["texto"]).pack(side="left", padx=(0, 6))
+        self._botao(bts, "↗ /api/verificar", lambda: webbrowser.open(URL_SITE + "/api/verificar"), C["card2"], C["texto"]).pack(side="left", padx=(0, 6))
+        self._botao(bts, "▤ Gráfico", self.abrir_grafico, C["card2"], C["texto"]).pack(side="left", padx=(0, 6))
         self._botao(bts, "⟳ Atualizar agora", self.atualizar_agora, C["card2"], C["texto"]).pack(side="left")
         self.faixa.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
@@ -495,7 +509,7 @@ class Painel:
 
     # ---------------- registro ----------------
     def _registrar(self, msg, nivel=None):
-        hora = datetime.now().strftime("%H:%M:%S")
+        hora = datetime.now(BRT).strftime("%H:%M:%S")
         self.txt_log.configure(state="normal")
         self.txt_log.insert("1.0", f"{hora}  {msg}\n", nivel or ())
         linhas = int(self.txt_log.index("end-1c").split(".")[0])
@@ -506,6 +520,7 @@ class Painel:
     # ---------------- ciclo ----------------
     def atualizar_agora(self):
         self.prox = 0
+        self.pedido_manual = True  # se houver consulta em andamento, faz outra logo depois dela
 
     def _fase(self):
         """'espera' (antes das 16h30), 'aquecimento' (16h30–17h) ou 'apuracao' (17h em diante)."""
@@ -517,6 +532,10 @@ class Painel:
     def _agendar_proxima(self):
         """Define quando será a próxima consulta automática, conforme a fase."""
         agora = time.time()
+        if getattr(self, "pedido_manual", False):  # clicaram em "Atualizar agora" durante a consulta
+            self.pedido_manual = False
+            self.prox = agora
+            return
         fase = self._fase()
         if fase == "apuracao":
             self.prox = agora + self.intervalo
@@ -526,18 +545,32 @@ class Painel:
             self.prox = INICIO_UTC.timestamp() - AQUECIMENTO_MIN * 60
 
     def _loop(self):
+        try:
+            self._passo()
+        except Exception as ex:  # nunca deixa o painel congelar por causa de um dado estranho
+            try:
+                self._registrar("Erro interno do painel: " + repr(ex)[:150], "erro")
+            except Exception:
+                pass
+        finally:
+            self.raiz.after(250, self._loop)
+
+    def _passo(self):
         agora = time.time()
         # relógio e contagem para o início
         self.lbl_relogio.configure(text=datetime.now(BRT).strftime("%d/%m/%Y  %H:%M:%S") + "  (Brasília)")
         falta = (INICIO_UTC - datetime.now(timezone.utc)).total_seconds()
         if falta > 0:
             d, r = divmod(int(falta), 86400); h, r = divmod(r, 3600); m, _ = divmod(r, 60)
-            self.lbl_inicio.configure(text=f"Divulgação começa em {d}d {h}h {m}min (domingo, 25/10, 17h)" if d else f"Divulgação começa em {h}h {m}min (hoje, 17h)")
+            dia_ini, hoje = INICIO_UTC.astimezone(BRT).date(), datetime.now(BRT).date()
+            quando = "hoje, 17h" if dia_ini == hoje else "amanhã, 17h" if (dia_ini - hoje).days == 1 else "domingo, 25/10, 17h"
+            self.lbl_inicio.configure(text=f"Divulgação começa em {d}d {h}h {m}min ({quando})" if d else f"Divulgação começa em {h}h {m}min ({quando})")
         else:
             self.lbl_inicio.configure(text="Divulgação em andamento desde as 17h de 25/10")
         # dispara nova consulta
         if not self.ocupado and agora >= self.prox:
             self.ocupado = True
+            self.pedido_manual = False
             threading.Thread(target=ciclo_de_consulta, args=(self.fila, self.arquivo_local), daemon=True).start()
         if self.ocupado:
             self.lbl_prox.configure(text="Consultando…")
@@ -555,10 +588,22 @@ class Painel:
         if self.cf_token and self.cf_conta:
             if not self.pub_ocupado and agora >= self.pub_prox:
                 self.pub_ocupado = True
-                threading.Thread(target=lambda: self.pub_fila.put(consultar_publico(self.cf_token, self.cf_conta)), daemon=True).start()
+                def tarefa_pub():
+                    try:
+                        r = consultar_publico(self.cf_token, self.cf_conta)
+                    except Exception as ex:
+                        r = {"ok": False, "erro": "falha ao ler estatísticas: " + repr(ex)[:80]}
+                    self.pub_fila.put(r)
+                threading.Thread(target=tarefa_pub, daemon=True).start()
             try:
                 while True:
-                    self._aplicar_publico(self.pub_fila.get_nowait())
+                    p = self.pub_fila.get_nowait()
+                    try:
+                        self._aplicar_publico(p)
+                    except Exception as ex:
+                        self.pub_ocupado = False
+                        self.pub_prox = time.time() + GQL_INTERVALO
+                        self._registrar("Público: erro ao mostrar: " + repr(ex)[:120], "atencao")
             except queue.Empty:
                 pass
         elif not getattr(self, "_aviso_cfg", False):
@@ -573,10 +618,15 @@ class Painel:
         # resultados prontos
         try:
             while True:
-                self._aplicar(self.fila.get_nowait())
+                res = self.fila.get_nowait()
+                try:
+                    self._aplicar(res)
+                except Exception as ex:
+                    self.ocupado = False
+                    self._agendar_proxima()
+                    self._registrar("Erro ao mostrar a consulta: " + repr(ex)[:150], "erro")
         except queue.Empty:
             pass
-        self.raiz.after(250, self._loop)
 
     def _aplicar(self, res):
         self.ocupado = False
@@ -601,9 +651,18 @@ class Painel:
         # --- Site: servidor no ar
         s = res["site"]
         if s["status"] and "upstream" in s["status"]:
-            ini = s["status"].get("start", "")
-            self.luz_site.definir("ok", "No ar", f"HTTP {s['http']} · {s['ms']} ms · início configurado: {ini.replace('T', ' ')[:16]} UTC")
-            niveis.append("ok")
+            ini = str(s["status"].get("start", ""))
+            try:
+                ini_site = datetime.fromisoformat(ini.replace("Z", "+00:00"))
+            except ValueError:
+                ini_site = None
+            if ini_site is not None and ini_site != INICIO_UTC:
+                self.luz_site.definir("atencao", "No ar, início diferente",
+                                      f"o site começa em {ini_site.astimezone(BRT):%d/%m %H:%M} (Brasília); o painel espera {INICIO_UTC.astimezone(BRT):%d/%m %H:%M} · confira TSE_START")
+                niveis.append("atencao")
+            else:
+                self.luz_site.definir("ok", "No ar", f"HTTP {s['http']} · {s['ms']} ms · início configurado: {ini.replace('T', ' ')[:16]} UTC")
+                niveis.append("ok")
         else:
             self.luz_site.definir("erro", "Sem resposta", s["erro"] or "resposta inesperada")
             niveis.append("erro")
@@ -620,14 +679,22 @@ class Painel:
                 nivel, det = "atencao", det + f" · atrás do TSE ({fmt_pct(t['dados']['pst'])})"
             if rs is not None:
                 if rs.get("error") == "not_started":
-                    det += "\n/api/resultado: aguardando 17h (correto antes do início)"
+                    if comecou:
+                        nivel = "erro"
+                        det += "\n/api/resultado: o site ainda acha que não começou (confira TSE_START no Worker)"
+                    else:
+                        det += "\n/api/resultado: aguardando 17h (correto antes do início)"
                 elif rs.get("ok"):
                     det += f"\n/api/resultado: {fmt_pct(rs.get('pst'))} (o que a página recebe)"
                 else:
                     det += f"\n/api/resultado: {rs.get('error')}"
                     if comecou:
                         nivel = "atencao"
-            self.luz_leitura.definir(nivel, "Lendo normalmente" if nivel == "ok" else "Atenção", det)
+            elif s.get("erro_res"):
+                det += f"\n/api/resultado: {s['erro_res']}"
+                if comecou:
+                    nivel = "atencao"
+            self.luz_leitura.definir(nivel, "Lendo normalmente" if nivel == "ok" else "Erro" if nivel == "erro" else "Atenção", det)
             niveis.append(nivel)
         else:
             erro = (ver or {}).get("error") or s["erro_ver"] or "sem resposta"
@@ -638,12 +705,12 @@ class Painel:
         # --- Atualização dos dados (o TSE está publicando coisas novas?)
         if t["ok"]:
             d = t["dados"]
-            marca = (d["gerado"], d["pst"])
+            marca = (d["gerado"], d["pst"] if ok_num(d["pst"]) else None)
             if marca != self.ultimo_gerado:
                 if self.ultimo_gerado is not None:
                     self._registrar(f"Novo dado do TSE: {fmt_pct(d['pst'])} das seções · gerado {d['gerado']}", "ok")
                 self.ultimo_gerado, self.quando_mudou = marca, time.time()
-            parado = time.time() - (self.quando_mudou or time.time())
+            parado = time.time() - max(self.quando_mudou or time.time(), INICIO_UTC.timestamp())
             if not comecou:
                 self.luz_dados.definir("ok", "Pronto (17h)", f"Arquivo gerado em {d['gerado'] or '—'} · {fmt_pct(d['pst'])} apurado")
                 niveis.append("ok")
@@ -700,25 +767,30 @@ class Painel:
         self.cv_graf = tk.Canvas(j, bg=COR["card"], highlightthickness=0); self.cv_graf.pack(fill="both", expand=True, padx=16, pady=12)
         self.cv_graf.bind("<Configure>", lambda e: self._desenhar_grafico())
         self.hist_pts = []
-        self._buscar_hist()
+        self.graf_geracao = getattr(self, "graf_geracao", 0) + 1  # janela nova: a busca da janela antiga para sozinha
+        self._buscar_hist(self.graf_geracao)
 
-    def _buscar_hist(self):
-        if not (getattr(self, "jan_graf", None) and self.jan_graf.winfo_exists()):
+    def _buscar_hist(self, geracao):
+        if geracao != getattr(self, "graf_geracao", 0) or not (getattr(self, "jan_graf", None) and self.jan_graf.winfo_exists()):
             return
         def tarefa():
             marcar_propria(); dados, ms, http, erro = baixar_json(URL_SITE + "/api/historico")
-            self.raiz.after(0, lambda: self._receber_hist(dados, erro))
+            try:
+                self.raiz.after(0, lambda: self._receber_hist(dados, erro))
+            except RuntimeError:  # painel fechado durante a busca
+                pass
         threading.Thread(target=tarefa, daemon=True).start()
-        self.raiz.after(60000, self._buscar_hist)  # atualiza a cada minuto enquanto a janela estiver aberta
+        self.raiz.after(60000, lambda: self._buscar_hist(geracao))  # a cada minuto, enquanto ESTA janela estiver aberta
 
     def _receber_hist(self, dados, erro):
         if not (getattr(self, "jan_graf", None) and self.jan_graf.winfo_exists()):
             return
-        if dados and dados.get("ok"):
-            self.hist_pts = dados.get("pontos") or []
-            self.lbl_graf.configure(text=f"{len(self.hist_pts)} pontos gravados pelo site (um por minuto, desde as 17h). Atualiza a cada minuto.")
+        if isinstance(dados, dict) and dados.get("ok"):
+            self.hist_pts = [p for p in (dados.get("pontos") or []) if isinstance(p, dict)]
+            n = sum(1 for p in self.hist_pts if ok_num(p.get("t")) and p["t"] / 1000 >= INICIO_UTC.timestamp() - 60)
+            self.lbl_graf.configure(text=f"{n} pontos gravados pelo site (um por minuto, desde as 17h). Atualiza a cada minuto.")
         else:
-            self.lbl_graf.configure(text="Não foi possível ler o histórico do site: " + str((dados or {}).get("error") or erro))
+            self.lbl_graf.configure(text="Não foi possível ler o histórico do site: " + str((dados.get("error") if isinstance(dados, dict) else None) or erro or "resposta inesperada"))
         self._desenhar_grafico()
 
     def _desenhar_grafico(self):
@@ -729,7 +801,9 @@ class Painel:
         W, H = max(400, cv.winfo_width()), max(300, cv.winfo_height())
         pts = []
         for p in getattr(self, "hist_pts", []):
-            v = {int(k): float(x) for k, x in (p.get("votos") or {}).items()}
+            if not ok_num(p.get("t")) or p["t"] / 1000 < INICIO_UTC.timestamp() - 60:
+                continue  # ponto de ensaio, anterior ao início da apuração
+            v = {int(k): float(x) for k, x in (p.get("votos") or {}).items() if ok_num(x)}
             tot = p.get("vvc") or sum(v.values())
             if tot:
                 pts.append((p["t"] / 1000, p["pst"], v, tot))
@@ -776,7 +850,7 @@ class Painel:
         n_t = max(2, min(6, len(pts), int((W - ml - mr) / 90)))
         for k in range(n_t):
             t = t0 + (t1 - t0) * k / (n_t - 1)
-            cv.create_text(X(t), H - 16, text=datetime.fromtimestamp(t).strftime("%H:%M"), fill=COR["fraco"], font=f["peq"])
+            cv.create_text(X(t), H - 16, text=datetime.fromtimestamp(t, BRT).strftime("%H:%M"), fill=COR["fraco"], font=f["peq"])
 
     def _atualizar_numeros(self, d):
         self.lbl_pct.configure(text=fmt_pct(d["pst"]))
@@ -796,7 +870,8 @@ class Painel:
             self.cv_prog.create_rectangle(0, 0, w * d["pst"] / 100, 14, fill=COR["ouro"], outline="")
         for k, lb in self.totais.items():
             val = d[k]
-            ref = d["tv"] if k in ("vv", "vb", "vn") else d["te"] if k in ("comp", "abst") else float("nan")
+            base_el = d["est"] if ok_num(d["est"]) and d["est"] > 0 else d["te"]  # eleitorado das seções já apuradas
+            ref = d["tv"] if k in ("vv", "vb", "vn") else base_el if k in ("comp", "abst") else float("nan")
             extra = f"  ({fmt_pct(100 * val / ref, 1)})" if ok_num(val) and ok_num(ref) and ref > 0 else ""
             lb.configure(text=fmt_int(val) + extra)
 
@@ -894,7 +969,7 @@ class Painel:
             cv.create_text(x_votos - 14, cy, text=fmt_int(c["vap"]), fill=COR["texto"], font=f["linha_num"], anchor="e")
             cv.create_text(x_pct, cy, text=fmt_pct(c["pvap"]), fill=COR["ouro"] if i < 2 and tem_votos else COR["texto"], font=f["linha_nome"], anchor="e")
         if not tem_votos:
-            cv.create_text(w / 2, 26 + 13 * lin + 4, text="Ainda sem votos apurados: a ordem acima é pelo número de urna.", fill=COR["fraco"], font=f["peq"])
+            cv.create_text(w / 2, 26 + len(ordem) * lin + 14, text="Ainda sem votos apurados: a ordem acima é pelo número de urna.", fill=COR["fraco"], font=f["peq"])
 
 
 def main():

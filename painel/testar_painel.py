@@ -59,7 +59,9 @@ if not os.path.exists(arq):
     linha("ATENÇÃO", f"não encontrado em {AQUI} (o painel funciona, só sem o quadro de público)")
 else:
     try:
-        cfg = json.load(open(arq, encoding="utf-8"))
+        cfg = json.load(open(arq, encoding="utf-8-sig"))  # utf-8-sig: aceita arquivo salvo "com BOM" (Bloco de Notas)
+        if not isinstance(cfg, dict):
+            raise ValueError("o arquivo precisa ser um objeto JSON, como no painel_config.exemplo.json")
         tok, acc = str(cfg.get("cf_api_token", "")).strip(), str(cfg.get("cf_account_id", "")).strip()
         linha("OK", "arquivo bem escrito (JSON válido)")
         linha("OK" if tok and not tok.upper().startswith("COLE") else "FALHA", "token " + ("preenchido" if tok and not tok.upper().startswith("COLE") else "não preenchido"))

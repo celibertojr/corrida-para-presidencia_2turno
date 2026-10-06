@@ -7,7 +7,7 @@ Programa em Python, **separado do site**, para acompanhar no computador se tudo 
 - Apuração: % de urnas, seções totalizadas e horário da última totalização.
 - Totais: eleitorado, comparecimento, abstenção, válidos, brancos e nulos.
 - Classificação dos 2 candidatos do 2º turno e a **diferença de votos** entre eles.
-- Botão **📈 Gráfico**: janela com a evolução minuto a minuto (lida do histórico gravado pelo site).
+- Botão **▤ Gráfico**: janela com a evolução minuto a minuto (lida do histórico gravado pelo site), no horário de Brasília.
 - **Público no site** (opcional): estimativa de pessoas online e consultas do dia, com o quanto da cota grátis da Cloudflare já foi usado.
 - Botões para abrir o site, os resultados do TSE e o `/api/verificar`.
 
