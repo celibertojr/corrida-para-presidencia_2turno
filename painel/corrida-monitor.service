@@ -1,0 +1,17 @@
+# Serviço do monitor sem janela (Raspberry Pi). Instalação:
+#   mkdir -p ~/.config/systemd/user && cp corrida-monitor.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now corrida-monitor
+#   sudo loginctl enable-linger $USER     # continua rodando sem ninguém logado
+[Unit]
+Description=Monitor da Corrida para a Presidência
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/corrida/painel
+ExecStart=/usr/bin/python3 %h/corrida/painel/monitor_corrida.py
+Restart=always
+RestartSec=15
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

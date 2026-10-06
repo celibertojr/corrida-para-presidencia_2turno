@@ -44,3 +44,20 @@ Para ativar:
    Ou use as variáveis de ambiente `CF_API_TOKEN` e `CF_ACCOUNT_ID`.
 
 O arquivo `painel_config.json` está no `.gitignore`: **nunca envie o token para o GitHub.**
+
+## Sem tela (Raspberry Pi) e com o OpenClaw
+
+`monitor_corrida.py` faz as mesmas checagens do painel, sem janela, e grava a situação em
+`estado_corrida.txt` (resumo em português), `estado_corrida.json` e `monitor_corrida.log`.
+
+```bash
+git clone https://github.com/celibertojr/corrida-para-presidencia_2turno.git ~/corrida
+cp painel_config.json ~/corrida/painel/          # opcional: público no site
+python3 ~/corrida/painel/monitor_corrida.py --uma-vez   # teste
+# deixar rodando sempre (reinicia sozinho):
+mkdir -p ~/.config/systemd/user && cp ~/corrida/painel/corrida-monitor.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now corrida-monitor
+sudo loginctl enable-linger $USER
+# skill do OpenClaw:
+mkdir -p ~/.openclaw/workspace/skills/corrida-presidencia && cp ~/corrida/painel/openclaw/SKILL.md ~/.openclaw/workspace/skills/corrida-presidencia/
+```

@@ -2,3 +2,7 @@ node_modules/
 .wrangler/
 painel/painel_config.json
 painel/historico_apuracao.csv
+painel/estado_corrida.json
+painel/estado_corrida.txt
+painel/monitor_corrida.log
+painel/*.tmp

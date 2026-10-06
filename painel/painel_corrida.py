@@ -40,8 +40,11 @@ import urllib.request
 import webbrowser
 from datetime import datetime, timezone, timedelta
 
-import tkinter as tk
-from tkinter import font as tkfont
+try:  # a janela precisa de Tkinter; o monitor sem janela (monitor_corrida.py) não
+    import tkinter as tk
+    from tkinter import font as tkfont
+except ImportError:
+    tk = tkfont = None
 
 # --------------------------------------------------------------------------
 # Configuração
@@ -977,6 +980,8 @@ def main():
     ap.add_argument("--intervalo", type=int, default=INTERVALO_PADRAO, help="segundos entre consultas (mínimo 10)")
     ap.add_argument("--arquivo", help="ler um JSON local no lugar do TSE (só para testar o painel)")
     a = ap.parse_args()
+    if tk is None:
+        raise SystemExit("Tkinter não encontrado (Linux: sudo apt install python3-tk). Sem tela, use: python3 monitor_corrida.py")
     raiz = tk.Tk()
     Painel(raiz, max(10, a.intervalo), a.arquivo)
     raiz.mainloop()
