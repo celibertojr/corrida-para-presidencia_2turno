@@ -45,6 +45,7 @@ Todos os números vêm da divulgação oficial do TSE.
 | **Tendência** | Quando a diferença supera o dobro dos votos válidos esperados no ritmo atual. |
 | **Eleito** | Assim que o arquivo oficial do TSE marca um candidato como eleito (o que pode acontecer antes de 100%, quando o resultado fica matematicamente definido), o site mostra "eleito, segundo o TSE". Com 100% e sem essa marca, mostra "mais votado". |
 | **Empate** | Votos iguais aparecem como empate: ninguém "lidera" e o pódio não é liberado. |
+| **Cena do pódio** | O 1º colocado comemora com os braços para cima e a faixa presidencial verde e amarela; o 2º fica triste, de cabeça baixa e braços caídos. Atrás, uma torcida pula com bandeiras na cor do partido de quem venceu. Vale igual para os dois candidatos. |
 | **Botão "Vencedores"** | Pódio 3D liberado quando o TSE declara o eleito, ou acima de 99% das urnas (só com 99,99% se a diferença estiver dentro da margem de incerteza). |
 | **% de urnas** | Nunca arredonda para cima: 99,96% aparece como 99,96%, não 100,0%. Perto do início e do fim, com 2 casas, como o TSE. |
 
