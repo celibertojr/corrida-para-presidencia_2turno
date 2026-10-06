@@ -6,3 +6,5 @@ painel/estado_corrida.json
 painel/estado_corrida.txt
 painel/monitor_corrida.log
 painel/*.tmp
+painel/alertas.json
+painel/alertas.log

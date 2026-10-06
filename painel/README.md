@@ -61,3 +61,14 @@ sudo loginctl enable-linger $USER
 # skill do OpenClaw:
 mkdir -p ~/.openclaw/workspace/skills/corrida-presidencia && cp ~/corrida/painel/openclaw/SKILL.md ~/.openclaw/workspace/skills/corrida-presidencia/
 ```
+
+### Avisos automáticos
+
+O monitor avisa sozinho quando algo dá errado (a partir das 16h30): TSE sem responder, site fora do ar,
+site sem ler o TSE, página ainda "não começou" depois das 17h, ou nenhum dado novo há mais de 10 min.
+Cada problema avisa uma vez, lembra a cada 30 min se continuar e avisa quando volta ao normal.
+
+- **Envio:** no `painel_config.json`, `telegram_token` + `telegram_chat_id` (bot do Telegram) e/ou
+  `alerta_cmd` (qualquer comando; a mensagem vem na variável `ALERTA_MSG`). Tudo fica em `alertas.log`.
+- **Controle** (o Kermit/OpenClaw usa pela skill): `--alertas desligar`, `--alertas ligar`,
+  `--silenciar 60`, `--alertas status`. Teste: `--testar-aviso`.

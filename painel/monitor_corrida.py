@@ -29,7 +29,10 @@ import argparse
 import json
 import os
 import queue
+import subprocess
 import sys
+import urllib.parse
+import urllib.request
 import time
 from datetime import datetime, timezone
 
@@ -40,6 +43,130 @@ ARQ_JSON = os.path.join(AQUI, "estado_corrida.json")
 ARQ_TXT = os.path.join(AQUI, "estado_corrida.txt")
 ARQ_LOG = os.path.join(AQUI, "monitor_corrida.log")
 ESPERA_ANTES = 3600  # antes das 16h30: uma checagem por hora
+ARQ_ALERTAS = os.path.join(AQUI, "alertas.json")       # liga/desliga/silencia (o OpenClaw muda por comando)
+ARQ_ALERTAS_LOG = os.path.join(AQUI, "alertas.log")    # todos os avisos enviados
+REPETIR_MIN = 30   # problema que continua: lembra no máximo a cada 30 min
+CARENCIA_TSE_MIN = 5  # o arquivo do TSE pode demorar alguns minutos depois das 17h: só avisa depois disso
+
+
+# ---------------------------------------------------------------------------
+# Avisos automáticos
+# Regras (só a partir das 16h30):
+#   - TSE sem responder em 3 rodadas seguidas (a partir das 17h05);
+#   - site fora do ar em 2 rodadas seguidas;
+#   - site sem conseguir ler o TSE em 3 rodadas seguidas (a partir das 17h05);
+#   - página ainda "não começou" depois das 17h, ou início configurado errado;
+#   - nenhum dado novo do TSE há mais de 10 min durante a apuração.
+# Cada problema avisa uma vez, lembra a cada 30 min se continuar e avisa quando volta ao normal.
+# Controle (o OpenClaw usa estes comandos):
+#   monitor_corrida.py --alertas desligar | ligar | status      e      --silenciar 60   (minutos)
+# Envio: Telegram direto (telegram_token + telegram_chat_id no painel_config.json) e/ou
+#        um comando qualquer (alerta_cmd), que recebe a mensagem na variável ALERTA_MSG.
+#        Sempre fica registrado em alertas.log.
+# ---------------------------------------------------------------------------
+def ler_ctrl():
+    try:
+        with open(ARQ_ALERTAS, encoding="utf-8") as f:
+            c = json.load(f)
+        return c if isinstance(c, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def gravar_ctrl(c):
+    gravar(ARQ_ALERTAS, json.dumps(c, ensure_ascii=False, indent=1))
+
+
+def estado_alertas():
+    c = ler_ctrl()
+    if c.get("desligado"):
+        return False, "desligados (ligue com: --alertas ligar)"
+    ate = c.get("silencio_ate", 0)
+    if ate > time.time():
+        return False, f"silenciados até {datetime.fromtimestamp(ate, P.BRT):%H:%M}"
+    return True, "ligados"
+
+
+def config_envio():
+    try:
+        with open(P.ARQ_CONFIG, encoding="utf-8-sig") as f:
+            c = json.load(f)
+        return c if isinstance(c, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def enviar(msg):
+    """Envia o aviso pelos meios configurados; nunca derruba o monitor."""
+    with open(ARQ_ALERTAS_LOG, "a", encoding="utf-8") as f:
+        f.write(f"{agora_brt():%d/%m %H:%M:%S}  {msg}\n")
+    ligado, porque = estado_alertas()
+    if not ligado:
+        registrar(f"Aviso não enviado (alertas {porque}): {msg.splitlines()[0]}")
+        return
+    cfg, enviado = config_envio(), False
+    tok, chat = str(cfg.get("telegram_token", "")).strip(), str(cfg.get("telegram_chat_id", "")).strip()
+    if tok and chat and not tok.upper().startswith("COLE"):
+        try:
+            dados = urllib.parse.urlencode({"chat_id": chat, "text": msg}).encode()
+            urllib.request.urlopen(urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=dados), timeout=15, context=P.CTX).read()
+            enviado = True
+        except Exception as ex:
+            registrar("Falha ao enviar pelo Telegram: " + repr(ex)[:120])
+    cmd = str(cfg.get("alerta_cmd", "")).strip()
+    if cmd:
+        try:
+            subprocess.run(cmd, shell=True, timeout=60, env=dict(os.environ, ALERTA_MSG=msg))
+            enviado = True
+        except Exception as ex:
+            registrar("Falha no alerta_cmd: " + repr(ex)[:120])
+    registrar(("Aviso enviado: " if enviado else "Aviso só registrado (nenhum envio configurado): ") + msg.splitlines()[0])
+
+
+def checar_alertas(itens, res, mem):
+    agora = datetime.now(timezone.utc)
+    falta = (P.INICIO_UTC - agora).total_seconds()
+    if falta > P.AQUECIMENTO_MIN * 60:
+        return  # antes das 16h30 não avisa nada
+    passou = -falta / 60  # minutos desde as 17h (negativo antes)
+    cont = mem.setdefault("seguidas", {})
+    s = res["site"]
+    def conta(chave, ruim):
+        cont[chave] = cont.get(chave, 0) + 1 if ruim else 0
+        return cont[chave]
+    problemas = {}
+    if conta("tse", not res["tse"]["ok"]) >= 3 and passou >= CARENCIA_TSE_MIN:
+        problemas["tse"] = "o arquivo do TSE não responde: " + str(res["tse"]["erro"] or "sem resposta")
+    if conta("site", "upstream" not in (s["status"] or {})) >= 2:
+        problemas["site"] = "o site está fora do ar: " + str(s["erro"] or "resposta inesperada")
+    if conta("leitura", not (s["verificar"] or {}).get("ok")) >= 3 and passou >= CARENCIA_TSE_MIN:
+        problemas["leitura"] = "o site não consegue ler o TSE"
+    n_le, det_le = itens["leitura"]
+    if n_le == "erro" and "TSE_START" in det_le:
+        problemas["inicio"] = "a página ainda acha que a apuração não começou (confira TSE_START na Cloudflare)"
+    n_si, det_si = itens["site"]
+    if n_si == "atencao" and "início configurado" in det_si:
+        problemas["inicio_cfg"] = det_si
+    n_da, det_da = itens["dados"]
+    if passou >= 0 and n_da == "atencao" and "sem novidade" in det_da:
+        problemas["parado"] = det_da
+    ativos = mem.setdefault("alertas", {})
+    agora_s = time.time()
+    novos = [k for k in problemas if k not in ativos]
+    lembrar = [k for k in problemas if k in ativos and agora_s - ativos[k][0] >= REPETIR_MIN * 60]
+    resolvidos = [k for k in list(ativos) if k not in problemas]
+    if novos or lembrar:
+        titulo = "⚠️ Corrida para a Presidência: problema" if novos else "⏰ Corrida para a Presidência: o problema continua"
+        msg = titulo + "\n" + "\n".join("• " + problemas[k] for k in problemas) + \
+              "\n(para parar os avisos: --alertas desligar  ou  --silenciar 60)"
+        enviar(msg)
+        for k in novos + lembrar:
+            ativos[k] = (agora_s, problemas[k])
+    textos = [ativos.pop(k)[1] for k in resolvidos]
+    if resolvidos and not problemas:
+        enviar("✅ Corrida para a Presidência: voltou ao normal.")
+    elif resolvidos:
+        enviar("✅ Corrida para a Presidência: resolvido\n" + "\n".join("• " + t for t in textos))
 
 
 def agora_brt():
@@ -173,6 +300,10 @@ def rodada(mem):
         probs = " | ".join(f"{k}: {det}" for k, (n, det) in itens.items() if n != "ok")
         registrar(f"Situação: {nivel}" + (f" · {probs}" if probs else ""))
         mem["nivel"] = nivel
+    try:
+        checar_alertas(itens, res, mem)
+    except Exception as ex:
+        registrar("Erro ao checar avisos: " + repr(ex)[:150])
     return txt
 
 
@@ -190,7 +321,25 @@ def main():
     ap.add_argument("--intervalo", type=int, default=P.INTERVALO_PADRAO, help="segundos entre consultas a partir das 17h (mínimo 10)")
     ap.add_argument("--uma-vez", action="store_true", help="faz uma checagem agora, mostra o resumo e sai")
     ap.add_argument("--resumo", action="store_true", help="mostra o último resumo gravado, sem consultar nada")
+    ap.add_argument("--alertas", choices=["ligar", "desligar", "status"], help="liga, desliga ou mostra os avisos automáticos")
+    ap.add_argument("--silenciar", type=int, metavar="MIN", help="silencia os avisos por MIN minutos (0 = acaba o silêncio)")
+    ap.add_argument("--testar-aviso", action="store_true", help="envia um aviso de teste pelos meios configurados")
     a = ap.parse_args()
+    if a.alertas or a.silenciar is not None:
+        c = ler_ctrl()
+        if a.alertas == "ligar":
+            c["desligado"] = False; c["silencio_ate"] = 0
+        elif a.alertas == "desligar":
+            c["desligado"] = True
+        if a.silenciar is not None:
+            c["silencio_ate"] = time.time() + max(0, a.silenciar) * 60
+        if a.alertas != "status" or a.silenciar is not None:
+            gravar_ctrl(c)
+        print("Avisos automáticos:", estado_alertas()[1])
+        return
+    if a.testar_aviso:
+        enviar("🔔 Teste de aviso da Corrida para a Presidência.")
+        return
     if a.resumo:
         if not os.path.exists(ARQ_TXT):
             sys.exit("Ainda não há resumo: o monitor não rodou nenhuma vez.")

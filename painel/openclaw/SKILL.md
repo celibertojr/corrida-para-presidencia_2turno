@@ -1,6 +1,6 @@
 ---
 name: corrida-presidencia
-description: Situação da Corrida para a Presidência (site da apuração do 2º turno): TSE, site, dados e público.
+description: Situação da Corrida para a Presidência (apuração do 2º turno) e controle dos avisos automáticos do monitor.
 ---
 
 # Corrida para a Presidência · monitor
@@ -31,6 +31,18 @@ Para saber se o serviço do monitor está rodando (e reiniciar, se o usuário pe
 ```bash
 systemctl --user status corrida-monitor --no-pager | head -5
 systemctl --user restart corrida-monitor
+```
+
+Avisos automáticos (o monitor manda sozinho quando algo dá errado: TSE sem responder, site fora do ar,
+site sem ler o TSE, nenhum dado novo há mais de 10 min). Quando o usuário pedir para parar, pausar,
+silenciar, desligar ou religar os avisos, rode o comando correspondente e confirme o resultado:
+
+```bash
+python3 ~/corrida/painel/monitor_corrida.py --alertas desligar   # para de avisar até religar
+python3 ~/corrida/painel/monitor_corrida.py --alertas ligar      # volta a avisar
+python3 ~/corrida/painel/monitor_corrida.py --silenciar 60       # silencia por 60 minutos (use o tempo que ele pedir)
+python3 ~/corrida/painel/monitor_corrida.py --alertas status     # mostra se estão ligados
+tail -n 10 ~/corrida/painel/alertas.log                          # últimos avisos
 ```
 
 Regras:
