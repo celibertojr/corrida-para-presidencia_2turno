@@ -26,12 +26,17 @@ Para ver o que mudou durante a noite (novos dados, mudanças de situação):
 tail -n 20 ~/corrida/painel/monitor_corrida.log
 ```
 
-Para saber se o serviço do monitor está rodando (e reiniciar, se o usuário pedir):
+Ligar e desligar o monitor (quando o usuário pedir para "ligar/iniciar", "parar/desligar" ou "reiniciar"
+o monitor da corrida). Confirme sempre com o status no fim:
 
 ```bash
-systemctl --user status corrida-monitor --no-pager | head -5
-systemctl --user restart corrida-monitor
+systemctl --user enable --now corrida-monitor    # liga agora e também depois de reiniciar o Pi
+systemctl --user disable --now corrida-monitor   # para agora e não volta sozinho
+systemctl --user restart corrida-monitor         # reinicia
+systemctl --user is-active corrida-monitor       # active = rodando; inactive = parado
 ```
+
+Com o monitor parado, `--resumo` mostra o último resumo (antigo) e não chegam avisos.
 
 Avisos automáticos (o monitor manda sozinho quando algo dá errado: TSE sem responder, site fora do ar,
 site sem ler o TSE, nenhum dado novo há mais de 10 min). Quando o usuário pedir para parar, pausar,
