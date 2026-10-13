@@ -73,7 +73,7 @@ flowchart LR
 
 | Variável | Para que serve |
 |---|---|
-| `TSE_URL` | URL do JSON do TSE, se o tribunal usar outro caminho. Padrão: eleição **6258** (2º turno). |
+| `TSE_URL` | URL do JSON do TSE, se o tribunal usar outro caminho. Padrão: eleição **6258** (2º turno), confirmada: o TSE publicou o arquivo em 12/10/2026, ainda zerado. |
 | `TSE_START` | Início da divulgação (ISO 8601). Padrão: `2026-10-25T20:00:00Z` (17h de Brasília). |
 
 `/api/status` mostra a URL e o horário em uso; `/api/verificar` lê o TSE na hora.
